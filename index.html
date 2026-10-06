@@ -246,14 +246,33 @@
         // -------------------------------------------------------------
         // ABSOLUTE TIMING VARIABLES
         // -------------------------------------------------------------
-        let totalSamplesReceived = 0; 
-        let lastSoundTimeMs = -9999;
-        let s1TimeMs = 0;
-        let lastValidS1TimeMs = 0;
+        let totalSamplesReceived = 0;
+        let lastDetectedEventMs = -Infinity;
+
+        // S1/S2 state machine
         let waitingForS2 = false;
-        
-        let latestCalculatedBpm = 0; // Stores the most recent BPM math
+        let currentS1TimeMs = NaN;
+        let previousS1TimeMs = NaN;
+
+        // BPM is always based on S1 -> S1, never S1 -> S2
+        let latestCalculatedBpm = 0;
         let bpmBuffer = [];
+
+        // Continuous sample-level detector
+        let detectorEnvelope = 0;
+        let noiseFloor = 0.008;
+        let inSoundBurst = false;
+        let burstPeak = 0;
+        let burstPeakSample = 0;
+        let burstStartSample = 0;
+        let belowThresholdSamples = 0;
+
+        const SAMPLE_RATE = 4000;
+        const MIN_EVENT_GAP_MS = 75;
+        const S1_S2_MIN_MS = 100;
+        const S1_S2_MAX_MS = 500;
+        const MIN_S1_S1_MS = 300;
+        const MAX_S1_S1_MS = 2000;
 
         // Draw initial flatline
         drawWaveform(new Uint8Array(128).fill(128));
@@ -262,18 +281,14 @@
         // EXACTLY 1-SECOND UI REFRESH TIMER
         // =============================================================
         setInterval(() => {
-            let currentGlobalTimeMs = (totalSamplesReceived / 4.0);
-            
-            // If it's been more than 2.5 seconds since the last sound, zero the BPM (flatline)
-            if (currentGlobalTimeMs - lastSoundTimeMs > 2500) {
-                latestCalculatedBpm = 0;
-                bpmBuffer = [];
-                phaseDisplay.innerText = "--";
+            // The displayed value is refreshed every second, but the value itself
+            // comes only from the latest valid S1-to-S1 interval.
+            if (latestCalculatedBpm > 0) {
+                bpmDisplay.innerText = Math.round(latestCalculatedBpm);
+            } else {
+                bpmDisplay.innerText = "--";
             }
-
-            // Update the screen every 1 second
-            bpmDisplay.innerText = Math.round(latestCalculatedBpm);
-        }, 1000); // 1000 ms = 1 second
+        }, 1000); // exactly 1 second
 
         connectBtn.addEventListener('click', async () => {
             try {
@@ -335,103 +350,166 @@
         function playAndVisualize(payload) {
             if (!audioCtx) return;
 
-            const buffer = audioCtx.createBuffer(1, payload.length, 4000);
+            const buffer = audioCtx.createBuffer(1, payload.length, SAMPLE_RATE);
             const channelData = buffer.getChannelData(0);
-            let maxAmplitude = 0;
-            let peakSampleIndex = 0;
 
             for (let i = 0; i < payload.length; i++) {
-                let floatSample = (payload[i] - 128) / 128.0;
-                channelData[i] = floatSample;
-                
-                // Track the loudest peak in this 128-byte packet
-                if (Math.abs(floatSample) > maxAmplitude) {
-                    maxAmplitude = Math.abs(floatSample);
-                    peakSampleIndex = i;
-                }
+                channelData[i] = (payload[i] - 128) / 128.0;
             }
 
-            // Flawless timing: 4000 samples per sec = 0.25 ms per sample
-            let currentPacketStartMs = (totalSamplesReceived / 4000.0) * 1000.0;
-            let absolutePeakTimeMs = currentPacketStartMs + ((peakSampleIndex / 4000.0) * 1000.0);
-            
-            totalSamplesReceived += payload.length;
+            // Keep the audio stream continuous.
+            if (nextAudioTime < audioCtx.currentTime) {
+                nextAudioTime = audioCtx.currentTime + 0.02;
+            } else if (nextAudioTime > audioCtx.currentTime + 0.30) {
+                nextAudioTime = audioCtx.currentTime + 0.05;
+            }
 
+            const scheduledStart = nextAudioTime;
             const source = audioCtx.createBufferSource();
             source.buffer = buffer;
             source.connect(audioCtx.destination);
-            
-            if (nextAudioTime < audioCtx.currentTime) {
-                nextAudioTime = audioCtx.currentTime + 0.02; 
-            } else if (nextAudioTime > audioCtx.currentTime + 0.3) {
-                nextAudioTime = audioCtx.currentTime + 0.05; 
-            }
-            source.start(nextAudioTime);
+            source.start(scheduledStart);
             nextAudioTime += buffer.duration;
 
             drawWaveform(payload);
-            analyzeBeat(maxAmplitude, absolutePeakTimeMs);
+
+            // IMPORTANT: analyse every sample, not just the loudest sample
+            // in a 128-sample packet. This prevents S1/S2 timing from being lost.
+            detectHeartSounds(payload);
+
+            totalSamplesReceived += payload.length;
         }
 
-        function analyzeBeat(amplitude, peakTimeMs) {
-            
-            if (amplitude > AMPLITUDE_THRESHOLD) {
-                
-                // MIN_SOUND_GAP (150ms)
-                if (peakTimeMs - lastSoundTimeMs >= 150) {
-                    
-                    if (!waitingForS2) {
-                        // S1 (Systolic Sound)
-                        s1TimeMs = peakTimeMs;
-                        waitingForS2 = true;
-                        
-                        phaseDisplay.innerText = "S1 (LUB)";
-                        triggerAnimation('pulse-s1');
-                    } 
-                    else {
-                        // S2 (Diastolic Sound)
-                        let gap = peakTimeMs - s1TimeMs;
+        function detectHeartSounds(payload) {
+            for (let i = 0; i < payload.length; i++) {
+                const sample = (payload[i] - 128) / 128.0;
+                const amplitude = Math.abs(sample);
 
-                        // Valid S1-S2 Gap (100ms - 500ms)
-                        if (gap >= 100 && gap <= 500) {
-                            waitingForS2 = false;
-                            phaseDisplay.innerText = "S2 (DUB)";
-                            triggerAnimation('pulse-s2');
+                // Fast envelope follows heart-sound bursts.
+                detectorEnvelope = 0.82 * detectorEnvelope + 0.18 * amplitude;
 
-                            // ----------------------------------------------------
-                            // CALCULATE BPM FROM THE S1-TO-S1 TIME GAP
-                            // ----------------------------------------------------
-                            if (lastValidS1TimeMs > 0) {
-                                // Full cardiac cycle gap (in milliseconds)
-                                let fullCycleGapMs = s1TimeMs - lastValidS1TimeMs;
-                                
-                                // Validate bounds (30 to 200 BPM)
-                                if (fullCycleGapMs >= 300 && fullCycleGapMs <= 2000) {
-                                    
-                                    // Math: 60,000 milliseconds in a minute / gap time
-                                    let instantBpm = 60000 / fullCycleGapMs;
-                                    
-                                    // Smooth out rapid jumps with a 3-beat average
-                                    bpmBuffer.push(instantBpm);
-                                    if (bpmBuffer.length > 3) bpmBuffer.shift();
-                                    
-                                    let sum = bpmBuffer.reduce((a, b) => a + b, 0);
-                                    latestCalculatedBpm = sum / bpmBuffer.length;
-                                }
-                            }
-                            lastValidS1TimeMs = s1TimeMs; 
-                        } 
-                        else {
-                            // Gap invalid. Start over at S1.
-                            s1TimeMs = peakTimeMs;
-                            waitingForS2 = true;
-                            
-                            phaseDisplay.innerText = "S1 (LUB)";
-                            triggerAnimation('pulse-s1');
-                        }
-                    }
-                    lastSoundTimeMs = peakTimeMs;
+                // Slow noise-floor estimate. The heart-sound threshold is never
+                // allowed to fall below the user's selected sensitivity.
+                if (!inSoundBurst) {
+                    noiseFloor = 0.995 * noiseFloor + 0.005 * Math.min(detectorEnvelope, 0.08);
                 }
+
+                const adaptiveThreshold = Math.max(
+                    AMPLITUDE_THRESHOLD,
+                    noiseFloor * 2.2
+                );
+
+                const globalSample = totalSamplesReceived + i;
+                const currentTimeMs = (globalSample / SAMPLE_RATE) * 1000.0;
+
+                if (!inSoundBurst) {
+                    if (detectorEnvelope >= adaptiveThreshold &&
+                        currentTimeMs - lastDetectedEventMs >= MIN_EVENT_GAP_MS) {
+
+                        inSoundBurst = true;
+                        burstPeak = detectorEnvelope;
+                        burstPeakSample = globalSample;
+                        burstStartSample = globalSample;
+                        belowThresholdSamples = 0;
+                    }
+                } else {
+                    if (detectorEnvelope > burstPeak) {
+                        burstPeak = detectorEnvelope;
+                        burstPeakSample = globalSample;
+                    }
+
+                    if (detectorEnvelope < adaptiveThreshold * 0.55) {
+                        belowThresholdSamples++;
+                    } else {
+                        belowThresholdSamples = 0;
+                    }
+
+                    // End the burst only after a short quiet period.
+                    // At 4 kHz, 24 samples = 6 ms.
+                    if (belowThresholdSamples >= 24) {
+                        const eventTimeMs = (burstPeakSample / SAMPLE_RATE) * 1000.0;
+
+                        if (eventTimeMs - lastDetectedEventMs >= MIN_EVENT_GAP_MS) {
+                            registerHeartSound(eventTimeMs);
+                            lastDetectedEventMs = eventTimeMs;
+                        }
+
+                        inSoundBurst = false;
+                        burstPeak = 0;
+                        burstPeakSample = globalSample;
+                        burstStartSample = globalSample;
+                        belowThresholdSamples = 0;
+                    }
+                }
+            }
+        }
+
+        function registerHeartSound(eventTimeMs) {
+            if (!waitingForS2) {
+                // First sound = S1.
+                currentS1TimeMs = eventTimeMs;
+                waitingForS2 = true;
+
+                phaseDisplay.innerText = "S1 (LUB)";
+                triggerAnimation('pulse-s1');
+                return;
+            }
+
+            const s1s2Gap = eventTimeMs - currentS1TimeMs;
+
+            if (s1s2Gap >= S1_S2_MIN_MS && s1s2Gap <= S1_S2_MAX_MS) {
+                // Second sound = S2. It confirms the S1/S2 pair.
+                waitingForS2 = false;
+                phaseDisplay.innerText = "S2 (DUB)";
+                triggerAnimation('pulse-s2');
+                return;
+            }
+
+            if (s1s2Gap > S1_S2_MAX_MS) {
+                // No valid S2 arrived. Treat this sound as the next S1.
+                // THIS is where the S1 -> S1 BPM interval is calculated.
+                calculateS1toS1Bpm(eventTimeMs);
+
+                currentS1TimeMs = eventTimeMs;
+                waitingForS2 = true;
+                phaseDisplay.innerText = "S1 (LUB)";
+                triggerAnimation('pulse-s1');
+                return;
+            }
+
+            // Sound came too close to the previous S1 to be S2.
+            // Ignore it instead of corrupting the BPM timing.
+        }
+
+        function calculateS1toS1Bpm(newS1TimeMs) {
+            if (!Number.isFinite(previousS1TimeMs)) {
+                previousS1TimeMs = newS1TimeMs;
+                return;
+            }
+
+            const intervalMs = newS1TimeMs - previousS1TimeMs;
+
+            if (intervalMs >= MIN_S1_S1_MS && intervalMs <= MAX_S1_S1_MS) {
+                const instantBpm = 60000 / intervalMs;
+
+                // Physiological display guard.
+                if (instantBpm >= 30 && instantBpm <= 200) {
+                    bpmBuffer.push(instantBpm);
+
+                    // Short median/average smoothing prevents one noisy detection
+                    // from making the displayed BPM jump wildly.
+                    if (bpmBuffer.length > 3) bpmBuffer.shift();
+
+                    const sorted = bpmBuffer.slice().sort((a, b) => a - b);
+                    latestCalculatedBpm = sorted[Math.floor(sorted.length / 2)];
+                }
+            }
+
+            // Always advance the S1 reference only after a valid timing step.
+            // If the interval is invalid, keep the previous S1 so one noise event
+            // cannot permanently corrupt the rhythm calculation.
+            if (intervalMs >= MIN_S1_S1_MS && intervalMs <= MAX_S1_S1_MS) {
+                previousS1TimeMs = newS1TimeMs;
             }
         }
 
