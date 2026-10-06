@@ -203,8 +203,8 @@
         <!-- Sensitivity Slider -->
         <div class="controls-panel">
             <div class="slider-container">
-                <label>Audio Sensitivity Threshold: <span id="threshText">0.15</span></label>
-                <input type="range" id="thresholdSlider" min="0.02" max="0.80" step="0.01" value="0.15">
+                <label>Audio Sensitivity Threshold: <span id="threshText">0.06</span></label>
+                <input type="range" id="thresholdSlider" min="0.02" max="0.80" step="0.01" value="0.06">
             </div>
             <p style="margin: 10px 0 0 0; font-size: 11px; color: #666;">Adjust so the pink dashed lines sit just above background noise.</p>
         </div>
@@ -445,8 +445,12 @@
         }
 
         function registerHeartSound(eventTimeMs) {
+            // S1 is the reference point for BPM.
+            // Every new S1 is compared with the PREVIOUS S1.
             if (!waitingForS2) {
-                // First sound = S1.
+                // We already completed an S1-S2 pair, so this event is the next S1.
+                calculateS1toS1Bpm(eventTimeMs);
+
                 currentS1TimeMs = eventTimeMs;
                 waitingForS2 = true;
 
@@ -458,57 +462,59 @@
             const s1s2Gap = eventTimeMs - currentS1TimeMs;
 
             if (s1s2Gap >= S1_S2_MIN_MS && s1s2Gap <= S1_S2_MAX_MS) {
-                // Second sound = S2. It confirms the S1/S2 pair.
+                // Correct S2: this does NOT calculate BPM.
+                // BPM is calculated only when the NEXT S1 arrives.
                 waitingForS2 = false;
+
                 phaseDisplay.innerText = "S2 (DUB)";
                 triggerAnimation('pulse-s2');
                 return;
             }
 
             if (s1s2Gap > S1_S2_MAX_MS) {
-                // No valid S2 arrived. Treat this sound as the next S1.
-                // THIS is where the S1 -> S1 BPM interval is calculated.
+                // S2 was missed. This event is a new S1.
                 calculateS1toS1Bpm(eventTimeMs);
 
                 currentS1TimeMs = eventTimeMs;
                 waitingForS2 = true;
+
                 phaseDisplay.innerText = "S1 (LUB)";
                 triggerAnimation('pulse-s1');
                 return;
             }
 
-            // Sound came too close to the previous S1 to be S2.
-            // Ignore it instead of corrupting the BPM timing.
+            // <100 ms after S1: ignore as noise/repeated detection.
         }
 
         function calculateS1toS1Bpm(newS1TimeMs) {
             if (!Number.isFinite(previousS1TimeMs)) {
+                // First S1: establish the reference only.
                 previousS1TimeMs = newS1TimeMs;
                 return;
             }
 
             const intervalMs = newS1TimeMs - previousS1TimeMs;
 
+            // Normal adult heart-rate range plus a little engineering tolerance.
             if (intervalMs >= MIN_S1_S1_MS && intervalMs <= MAX_S1_S1_MS) {
                 const instantBpm = 60000 / intervalMs;
 
-                // Physiological display guard.
                 if (instantBpm >= 30 && instantBpm <= 200) {
                     bpmBuffer.push(instantBpm);
-
-                    // Short median/average smoothing prevents one noisy detection
-                    // from making the displayed BPM jump wildly.
                     if (bpmBuffer.length > 3) bpmBuffer.shift();
 
-                    const sorted = bpmBuffer.slice().sort((a, b) => a - b);
+                    // Median is more robust than averaging when one detection
+                    // is slightly early/late.
+                    const sorted = bpmBuffer.slice().sort((x, y) => x - y);
                     latestCalculatedBpm = sorted[Math.floor(sorted.length / 2)];
-                }
-            }
 
-            // Always advance the S1 reference only after a valid timing step.
-            // If the interval is invalid, keep the previous S1 so one noise event
-            // cannot permanently corrupt the rhythm calculation.
-            if (intervalMs >= MIN_S1_S1_MS && intervalMs <= MAX_S1_S1_MS) {
+                    // Put the value on screen immediately; the 1-second timer
+                    // also refreshes it so the display remains stable.
+                    bpmDisplay.innerText = String(Math.round(latestCalculatedBpm));
+                }
+
+                // This is the critical step:
+                // the CURRENT S1 becomes the reference for the NEXT S1.
                 previousS1TimeMs = newS1TimeMs;
             }
         }
