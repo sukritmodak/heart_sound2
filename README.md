@@ -1,19 +1,106 @@
-# ESP32 Heart Sound Monitor & Visualizer
+# ESP32 Heart Sound Monitor
 
-This project streams live heart sounds from an ESP32 to a web browser using USB Serial. It visualizes the audio waveform, detects S1 (Lub) and S2 (Dub) sounds, calculates real-time BPM, animates a beating heart, and plays the live audio through your computer's speakers.
+Real-time heart sound monitoring using ESP32, Web Serial, 4000 Hz audio sampling, S1/S2 detection, waveform visualization and browser BPM estimation.
+
+## Repository structure
+
+```
+heart_sound2/
+├── README.md
+├── index.html
+└── ESP32_Audio_Sender/
+    └── ESP32_Audio_Sender.ino
+```
 
 ## Features
-* **Real-time Audio Streaming:** 4000Hz audio streamed over USB at 115200 baud.
-* **Web Serial API:** No software installation required; runs directly in Chrome or Edge.
-* **S1 / S2 Detection:** Algorithm analyzes amplitude peaks to detect Lub/Dub phases.
-* **Live Visualization:** Oscilloscope-style waveform drawn on an HTML5 canvas.
-* **Smart Heart Animation:** A CSS heart that pulses differently for S1 vs S2 beats.
-* **Bluetooth Output:** BPM and S1/S2 heartbeat logs are also sent over Bluetooth Classic.
 
-## How to Use
-1. Flash the `ESP32_Audio_Sender.ino` code to your ESP32.
-2. Connect your ESP32 to your PC via USB.
-3. Open `index.html` in **Google Chrome** or **Microsoft Edge**.
-4. Click **Connect ESP32** and select your COM port.
+- ESP32 analog heart-sound acquisition
+- 4000 Hz audio sampling
+- 128-sample audio blocks
+- Checksum-protected serial packets
+- Web Serial connection at 115200 baud
+- Real-time audio playback
+- Live waveform
+- Smoothed envelope detection
+- Adaptive noise threshold
+- S1 (LUB) and S2 (DUB) event detection
+- S1-to-S1 BPM calculation
+- Median filtering of recent BPM values
+- Heart animation
 
-*Note: Ensure the Arduino IDE Serial Monitor is closed before connecting the web app, as only one program can access the COM port at a time.*
+## Packet format
+
+The ESP32 sends:
+
+```
+A5 5A | 128 | 128 audio bytes | checksum
+```
+
+Total packet size: 132 bytes.
+
+The checksum is the 8-bit sum of the 128 audio bytes.
+
+## BPM calculation
+
+The browser does not use the maximum amplitude of each packet as a heartbeat.
+
+It processes the continuous audio sample stream:
+
+```
+Raw samples
+   ↓
+Rectification
+   ↓
+Envelope smoothing
+   ↓
+Adaptive noise threshold
+   ↓
+Sound event
+   ↓
+S1/S2 identification
+   ↓
+S1-to-S1 interval
+   ↓
+BPM
+   ↓
+Median filtering
+```
+
+BPM is calculated as:
+
+```
+BPM = 60000 / S1-to-S1 interval (ms)
+```
+
+Example:
+
+```
+S1-to-S1 = 833 ms
+BPM ≈ 72
+```
+
+## ESP32 settings
+
+- Analog input: GPIO 34
+- Digital input: GPIO 27
+- Sample rate: 4000 Hz
+- Audio block: 128 samples
+- Serial baud: 115200
+- Bluetooth device: ESP32-HEART
+
+## Running the web application
+
+Use a browser supporting Web Serial, such as Google Chrome or Microsoft Edge.
+
+1. Upload the ESP32 sketch.
+2. Connect ESP32 through USB.
+3. Close Arduino Serial Monitor.
+4. Open `index.html` from a suitable local/web server.
+5. Press **Connect ESP32 (USB)**.
+6. Select the ESP32 serial port.
+
+## Important
+
+The ESP32 packet format must remain unchanged unless the browser packet parser is also updated.
+
+This project is an engineering/research prototype. The displayed BPM is an algorithmic estimate and is not a medical diagnostic measurement.
