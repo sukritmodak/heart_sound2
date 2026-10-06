@@ -2,264 +2,896 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Advanced Heart Sound Monitor</title>
-<style>
-body{background:#0d0d12;color:#fff;font-family:'Segoe UI',Tahoma,sans-serif;display:flex;flex-direction:column;align-items:center;margin:0;padding:20px}
-h1{margin-bottom:5px;font-weight:600} p{color:#888;margin-bottom:25px}
-button{background:#e91e63;color:#fff;border:0;padding:15px 30px;font-size:16px;font-weight:bold;border-radius:8px;cursor:pointer;box-shadow:0 4px 15px rgba(233,30,99,.4);text-transform:uppercase}
-button:hover{background:#d81557}
-.dashboard{display:flex;flex-direction:column;align-items:center;gap:20px;width:100%;max-width:900px;margin-top:20px}
-.stats-panel{display:flex;gap:40px;background:#1a1a24;padding:20px 50px;border-radius:12px;border:1px solid #333;width:100%;box-sizing:border-box;justify-content:center}
-.stat-box{text-align:center;min-width:180px}.stat-value{font-size:42px;font-weight:bold;color:#00ffcc;font-family:monospace;height:50px;text-shadow:0 0 10px rgba(0,255,204,.3)}
-.phase-s1{color:#e91e63}.phase-s2{color:#ff9800}
-.stat-label{font-size:12px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-top:5px}
-.controls{background:#1a1a24;padding:15px 30px;border-radius:12px;border:1px solid #333;width:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:center}
-.controls input{width:100%;max-width:500px;accent-color:#e91e63}
-.visuals{display:flex;align-items:center;gap:40px;width:100%;justify-content:center}
-.heart{background:#333;width:50px;height:50px;position:relative;transform:rotate(-45deg) scale(1)}
-.heart:before,.heart:after{content:"";background:inherit;border-radius:50%;width:50px;height:50px;position:absolute}
-.heart:before{top:-25px;left:0}.heart:after{top:0;left:25px}
-@keyframes s1{0%{transform:rotate(-45deg) scale(1);background:#e91e63}30%{transform:rotate(-45deg) scale(1.3);background:#e91e63;box-shadow:0 0 40px rgba(233,30,99,.8)}100%{transform:rotate(-45deg) scale(1);background:#333}}
-@keyframes s2{0%{transform:rotate(-45deg) scale(1);background:#ff9800}20%{transform:rotate(-45deg) scale(1.45);background:#ff9800;box-shadow:0 0 50px rgba(255,152,0,.8)}100%{transform:rotate(-45deg) scale(1);background:#333}}
-.beat-s1{animation:s1 .25s ease-out forwards}.beat-s2{animation:s2 .30s ease-out forwards}
-canvas{background:#0a0a0f;border:2px solid #222;border-radius:8px}
-@media(max-width:700px){.visuals{flex-direction:column}.stats-panel{gap:15px;padding:15px}.stat-box{min-width:120px}}
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>ESP32 Heart Sound Monitor</title>
 
-.terminal-panel{width:100%;background:#090b0f;border:1px solid #333;border-radius:12px;box-sizing:border-box;padding:16px}.terminal-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px}.terminal-title{font-size:14px;color:#00ffcc;font-weight:700;letter-spacing:.5px}#bleBtn{background:#3949ab;padding:10px 18px;font-size:12px;box-shadow:none}#bleBtn.connected{background:#4CAF50}#terminal{height:210px;overflow-y:auto;background:#050608;border:1px solid #20242c;border-radius:8px;padding:12px;box-sizing:border-box;font:12px/1.55 Consolas,monospace;color:#b9c2cf;white-space:pre-wrap}.term-s1{color:#ff4f91}.term-s2{color:#ffb74d}.term-result{color:#00ffcc}.term-info{color:#8fa3bf}
+<style>
+*{box-sizing:border-box}
+
+body{
+    margin:0;
+    font-family:Arial,Helvetica,sans-serif;
+    background:#07111f;
+    color:#fff;
+}
+
+.container{
+    max-width:1200px;
+    margin:auto;
+    padding:20px;
+}
+
+h1{
+    text-align:center;
+    margin:5px 0 20px;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:18px;
+}
+
+.card{
+    background:#101d2e;
+    border:1px solid #263b54;
+    border-radius:14px;
+    padding:18px;
+}
+
+.full{
+    grid-column:1/-1;
+}
+
+.label{
+    color:#91a8c2;
+    font-size:14px;
+    margin-bottom:8px;
+}
+
+.bpm{
+    font-size:64px;
+    font-weight:bold;
+    text-align:center;
+}
+
+.phase{
+    text-align:center;
+    font-size:24px;
+    margin-top:8px;
+}
+
+button{
+    width:100%;
+    padding:14px;
+    border:0;
+    border-radius:10px;
+    margin-top:10px;
+    font-size:16px;
+    cursor:pointer;
+    background:#1677ff;
+    color:white;
+}
+
+button:disabled{
+    opacity:.5;
+}
+
+canvas{
+    width:100%;
+    height:260px;
+    background:#020812;
+    border-radius:10px;
+    display:block;
+}
+
+.terminal{
+    height:320px;
+    overflow-y:auto;
+    background:#02070d;
+    border:1px solid #263b54;
+    border-radius:10px;
+    padding:12px;
+    font-family:Consolas,monospace;
+    font-size:13px;
+    line-height:1.5;
+    white-space:pre-wrap;
+}
+
+.status{
+    text-align:center;
+    margin-top:10px;
+    color:#91a8c2;
+}
+
+@media(max-width:750px){
+    .grid{
+        grid-template-columns:1fr;
+    }
+
+    .full{
+        grid-column:auto;
+    }
+
+    .bpm{
+        font-size:52px;
+    }
+}
 </style>
 </head>
+
 <body>
-<h1>Advanced Heart Sound Monitor</h1>
-<p>Real-time S1/S2 detection with S1-to-S1 BPM</p>
-<button id="connectBtn">Connect USB Stethoscope</button>
-<div class="dashboard">
-<div class="stats-panel">
-<div class="stat-box"><div class="stat-value" id="phaseDisplay">--</div><div class="stat-label">Cardiac Phase</div></div>
-<div class="stat-box"><div class="stat-value" id="bpmDisplay">--</div><div class="stat-label">Live BPM • S1→S1 • 1 SEC</div></div>
+
+<div class="container">
+
+<h1>❤️ ESP32 Heart Sound Monitor</h1>
+
+<div class="grid">
+
+    <!-- BPM -->
+    <div class="card">
+        <div class="label">LIVE BPM • S1→S1 • 1 SECOND</div>
+        <div id="bpmDisplay" class="bpm">--</div>
+        <div id="phaseDisplay" class="phase">Waiting for S1...</div>
+    </div>
+
+    <!-- CONNECTION -->
+    <div class="card">
+        <div class="label">ESP32 CONNECTION</div>
+
+        <button id="usbBtn">
+            Connect USB Stethoscope
+        </button>
+
+        <button id="bluetoothBtn">
+            Connect Bluetooth Terminal
+        </button>
+
+        <div id="connectionStatus" class="status">
+            Not connected
+        </div>
+    </div>
+
+    <!-- WAVEFORM -->
+    <div class="card full">
+        <div class="label">REAL-TIME HEART SOUND WAVEFORM</div>
+        <canvas id="waveCanvas" width="1100" height="260"></canvas>
+    </div>
+
+    <!-- BLUETOOTH TERMINAL -->
+    <div class="card full">
+
+        <div class="label">
+            📡 ESP32 BLUETOOTH TERMINAL DATA
+        </div>
+
+        <div id="terminal" class="terminal">
+Waiting for Bluetooth data...
+        </div>
+
+        <button id="clearTerminal">
+            Clear Terminal
+        </button>
+
+    </div>
+
 </div>
-<div class="controls">
-<label style="margin-bottom:10px;font-size:14px;color:#bbb">Sensitivity Threshold: <span id="threshText">0.04</span></label>
-<input type="range" id="thresholdSlider" min="0.01" max="0.30" step="0.01" value="0.04">
-<div style="margin-top:8px;font-size:11px;color:#666">Start around 0.04 and adjust until heart sounds are detected without continuous noise.</div>
+
 </div>
-<div class="terminal-panel"><div class="terminal-head"><div class="terminal-title">ESP32 BLUETOOTH TERMINAL</div><button id="bleBtn">Connect Bluetooth Terminal</button></div><div id="terminal"><span class="term-info">Waiting for ESP32 Bluetooth telemetry...</span></div></div><div class="visuals">
-<div style="width:100px;height:100px;display:flex;align-items:center;justify-content:center"><div class="heart" id="heartIcon"></div></div>
-<canvas id="waveform" width="650" height="220"></canvas>
-</div>
-</div>
+
 <script>
-const connectBtn=document.getElementById('connectBtn');
-const phaseDisplay=document.getElementById('phaseDisplay');
-const bpmDisplay=document.getElementById('bpmDisplay');
-const heartIcon=document.getElementById('heartIcon');
-const slider=document.getElementById('thresholdSlider');
-const threshText=document.getElementById('threshText');
-const canvas=document.getElementById('waveform');
-const ctx=canvas.getContext('2d');
-const bleBtn=document.getElementById('bleBtn');const terminal=document.getElementById('terminal');
-const BLE_SERVICE_UUID='6e400001-b5a3-f393-e0a9-e50e24dcca9e';const BLE_TX_UUID='6e400003-b5a3-f393-e0a9-e50e24dcca9e';
-let bleDevice=null,bleCharacteristic=null;
-function terminalWrite(message,cls='term-info'){const line=document.createElement('div');line.className=cls;line.textContent='['+new Date().toLocaleTimeString()+'] '+message;terminal.appendChild(line);while(terminal.children.length>250)terminal.removeChild(terminal.firstChild);terminal.scrollTop=terminal.scrollHeight}
-function classifyTerminalMessage(message){if(message.includes('S1 detected'))return'term-s1';if(message.includes('S2 detected'))return'term-s2';if(message.includes('SECOND RESULT')||message.includes('BPM (pair count)'))return'term-result';return'term-info'}
-bleBtn.addEventListener('click',async()=>{if(!navigator.bluetooth){alert('Web Bluetooth is not available. Use Chrome or Edge over HTTPS.');return}try{bleDevice=await navigator.bluetooth.requestDevice({filters:[{name:'ESP32-HEART-BLE'}],optionalServices:[BLE_SERVICE_UUID]});bleDevice.addEventListener('gattserverdisconnected',()=>{bleBtn.textContent='Connect Bluetooth Terminal';bleBtn.classList.remove('connected');terminalWrite('Bluetooth terminal disconnected.')});const server=await bleDevice.gatt.connect();const service=await server.getPrimaryService(BLE_SERVICE_UUID);bleCharacteristic=await service.getCharacteristic(BLE_TX_UUID);await bleCharacteristic.startNotifications();bleCharacteristic.addEventListener('characteristicvaluechanged',e=>{const text=new TextDecoder().decode(e.target.value).replace(/\\0/g,'').trim();if(text)text.split(/\\r?\\n/).forEach(line=>{if(line.trim())terminalWrite(line,classifyTerminalMessage(line))})});bleBtn.textContent='Bluetooth Connected';bleBtn.classList.add('connected');terminalWrite('Connected to ESP32-HEART-BLE.','term-result')}catch(err){console.error(err);terminalWrite('Bluetooth connection failed: '+err.message)}});
+
+/* =========================================================
+   GLOBAL VARIABLES
+========================================================= */
+
+const SAMPLE_RATE = 4000;
+
+let port = null;
+let reader = null;
+
+let bluetoothDevice = null;
+let bluetoothCharacteristic = null;
+
+let audioBuffer = [];
+let totalSamplesReceived = 0;
+
+let previousS1TimeMs = NaN;
+let currentS1TimeMs = NaN;
+let waitingForS2 = false;
+
+let bpmHistory = [];
+let latestBpm = 0;
+let bpmValid = false;
+
+const MIN_S1_S1_MS = 300;
+const MAX_S1_S1_MS = 2000;
+
+const S1_S2_MIN_MS = 90;
+const S1_S2_MAX_MS = 500;
+
+const MIN_EVENT_GAP_MS = 70;
 
 
-let audioCtx=null,port=null,dataQueue=[];
-const SAMPLE_RATE=4000,PACKET_SAMPLES=128;
-let nextAudioTime=0,totalSamplesReceived=0;
+/* =========================================================
+   DOM
+========================================================= */
 
-let sensitivity=parseFloat(slider.value);
-slider.addEventListener('input',e=>{sensitivity=parseFloat(e.target.value);threshText.textContent=sensitivity.toFixed(2)});
+const bpmDisplay =
+    document.getElementById("bpmDisplay");
 
-let envelope=0,noiseFloor=0.008;
-let inBurst=false,peakEnvelope=0,peakSample=0,quietSamples=0;
-let lastEventMs=-Infinity;
+const phaseDisplay =
+    document.getElementById("phaseDisplay");
 
-let waitingForS2=false;
-let currentS1Ms=NaN;
-let previousS1Ms=NaN;
-let bpmHistory=[];
-let latestBpm=0;
-let bpmValid=false;
-let lastSoundActivityMs=0;
+const terminal =
+    document.getElementById("terminal");
 
-const MIN_EVENT_GAP_MS=70;
-const S1_S2_MIN_MS=90;
-const S1_S2_MAX_MS=500;
-const MIN_S1_S1_MS=300;
-const MAX_S1_S1_MS=2000;
+const connectionStatus =
+    document.getElementById("connectionStatus");
 
-drawWaveform(new Uint8Array(128).fill(128));
+const canvas =
+    document.getElementById("waveCanvas");
 
-setInterval(()=>{
-    if(lastSoundActivityMs>0 && sampleTimeMs()-lastSoundActivityMs>3000){
-        latestBpm=0;bpmValid=false;bpmHistory=[];waitingForS2=false;previousS1Ms=NaN;currentS1Ms=NaN;
-        phaseDisplay.textContent='--';phaseDisplay.className='stat-value';
-    }
-    bpmDisplay.textContent=bpmValid?String(Math.round(latestBpm)):'--';
-},1000);
+const ctx =
+    canvas.getContext("2d");
 
-function sampleTimeMs(){return totalSamplesReceived/SAMPLE_RATE*1000}
 
-connectBtn.addEventListener('click',async()=>{
-    try{
-        port=await navigator.serial.requestPort();
-        await port.open({baudRate:115200});
-        audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-        await audioCtx.resume();
-        connectBtn.textContent='Connected & Streaming';
-        connectBtn.style.background='#4CAF50';
-        readSerialLoop();
-    }catch(err){console.error(err);alert('Failed to connect. Close Arduino Serial Monitor and try again.')}
+/* =========================================================
+   BLUETOOTH TERMINAL
+========================================================= */
+
+function addTerminalData(text){
+
+    if(!text) return;
+
+    const lines = text.split(/\r?\n/);
+
+    lines.forEach(line => {
+
+        line = line.trim();
+
+        if(!line) return;
+
+        const time =
+            new Date().toLocaleTimeString();
+
+        terminal.textContent +=
+            `[${time}] ${line}\n`;
+
+    });
+
+    terminal.scrollTop =
+        terminal.scrollHeight;
+}
+
+
+document
+.getElementById("clearTerminal")
+.addEventListener("click",()=>{
+
+    terminal.textContent =
+        "Terminal cleared...\n";
+
 });
 
-async function readSerialLoop(){
-    const reader=port.readable.getReader();
-    try{while(true){const {value,done}=await reader.read();if(done)break;for(const b of value)dataQueue.push(b);processQueue()}}
-    catch(e){console.error('Serial read error:',e)}
-    finally{reader.releaseLock()}
-}
 
-function processQueue(){
-    while(dataQueue.length>=132){
-        if(dataQueue[0]!==0xA5||dataQueue[1]!==0x5A||dataQueue[2]!==128){dataQueue.shift();continue}
-        const payload=dataQueue.slice(3,131);
-        let sum=0;for(const b of payload)sum=(sum+b)&255;
-        if(sum!==dataQueue[131]){dataQueue.shift();continue}
-        processAudioPacket(payload);dataQueue.splice(0,132);
-    }
-}
+/* =========================================================
+   WEB BLUETOOTH
+========================================================= */
 
-function processAudioPacket(payload){
-    if(!audioCtx)return;
-    const buffer=audioCtx.createBuffer(1,PACKET_SAMPLES,SAMPLE_RATE);
-    const channel=buffer.getChannelData(0);
-    for(let i=0;i<PACKET_SAMPLES;i++)channel[i]=(payload[i]-128)/128;
+document
+.getElementById("bluetoothBtn")
+.addEventListener("click", connectBluetooth);
 
-    if(nextAudioTime<audioCtx.currentTime)nextAudioTime=audioCtx.currentTime+0.02;
-    if(nextAudioTime>audioCtx.currentTime+0.30)nextAudioTime=audioCtx.currentTime+0.05;
-    const source=audioCtx.createBufferSource();
-    source.buffer=buffer;source.connect(audioCtx.destination);source.start(nextAudioTime);
-    nextAudioTime+=buffer.duration;
 
-    detectHeartSounds(payload);
-    drawWaveform(payload);
-    totalSamplesReceived+=PACKET_SAMPLES;
-}
+async function connectBluetooth(){
 
-function detectHeartSounds(payload){
-    for(let i=0;i<payload.length;i++){
-        const sample=(payload[i]-128)/128;
-        const a=Math.abs(sample);
+    try{
 
-        // Energy/envelope detector: fast attack, slower release.
-        const target=a*a;
-        const attack=0.30,release=0.045;
-        envelope+=((target-envelope)*(target>envelope?attack:release));
-        const energy=Math.sqrt(envelope);
+        if(!navigator.bluetooth){
 
-        if(!inBurst)noiseFloor=0.998*noiseFloor+0.002*Math.min(energy,0.08);
-        const threshold=Math.max(sensitivity,noiseFloor*2.0);
+            addTerminalData(
+                "ERROR: Web Bluetooth is not supported by this browser."
+            );
 
-        const g=totalSamplesReceived+i;
-        const t=g/SAMPLE_RATE*1000;
-
-        if(!inBurst){
-            if(energy>=threshold && t-lastEventMs>=MIN_EVENT_GAP_MS){
-                inBurst=true;peakEnvelope=energy;peakSample=g;quietSamples=0;
-            }
-        }else{
-            if(energy>peakEnvelope){peakEnvelope=energy;peakSample=g}
-            if(energy<threshold*0.55)quietSamples++;else quietSamples=0;
-
-            if(quietSamples>=20){
-                const eventMs=peakSample/SAMPLE_RATE*1000;
-                if(eventMs-lastEventMs>=MIN_EVENT_GAP_MS){
-                    registerHeartSound(eventMs);
-                    lastEventMs=eventMs;
-                    lastSoundActivityMs=eventMs;
-                }
-                inBurst=false;peakEnvelope=0;quietSamples=0;
-            }
+            return;
         }
+
+        addTerminalData(
+            "Searching for ESP32 Bluetooth device..."
+        );
+
+        bluetoothDevice =
+            await navigator.bluetooth.requestDevice({
+
+                acceptAllDevices:true,
+
+                optionalServices:[
+                    "0000ffe0-0000-1000-8000-00805f9b34fb",
+                    "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
+                ]
+
+            });
+
+
+        addTerminalData(
+            "Device selected: " +
+            bluetoothDevice.name
+        );
+
+
+        bluetoothDevice.addEventListener(
+            "gattserverdisconnected",
+            ()=>{
+                addTerminalData(
+                    "Bluetooth disconnected."
+                );
+
+                connectionStatus.textContent =
+                    "Bluetooth disconnected";
+            }
+        );
+
+
+        const server =
+            await bluetoothDevice.gatt.connect();
+
+
+        addTerminalData(
+            "Bluetooth GATT connected."
+        );
+
+
+        /*
+         * Try Nordic UART Service first
+         */
+
+        try{
+
+            const service =
+                await server.getPrimaryService(
+                    "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
+                );
+
+            bluetoothCharacteristic =
+                await service.getCharacteristic(
+                    "6e400003-b5a3-f393-e0a9-e50e24dcca9e"
+                );
+
+        }catch(e){
+
+            /*
+             * Try common HM-10 / BLE UART service
+             */
+
+            const service =
+                await server.getPrimaryService(
+                    "0000ffe0-0000-1000-8000-00805f9b34fb"
+                );
+
+            bluetoothCharacteristic =
+                await service.getCharacteristic(
+                    "0000ffe1-0000-1000-8000-00805f9b34fb"
+                );
+
+        }
+
+
+        await bluetoothCharacteristic.startNotifications();
+
+
+        bluetoothCharacteristic.addEventListener(
+            "characteristicvaluechanged",
+            bluetoothDataReceived
+        );
+
+
+        connectionStatus.textContent =
+            "Bluetooth Terminal Connected";
+
+
+        addTerminalData(
+            "================================"
+        );
+
+        addTerminalData(
+            "BLUETOOTH TERMINAL CONNECTED"
+        );
+
+        addTerminalData(
+            "ESP32 terminal data will appear below."
+        );
+
+        addTerminalData(
+            "================================"
+        );
+
+
+    }catch(error){
+
+        console.error(error);
+
+        addTerminalData(
+            "Bluetooth ERROR: " +
+            error.message
+        );
+
+        connectionStatus.textContent =
+            "Bluetooth connection failed";
     }
+
 }
 
-function registerHeartSound(t){
-    // State 1: no completed S1->S2 pair yet, so first event is S1.
-    if(!waitingForS2){
-        // A new S1 is always the correct place to calculate BPM.
-        if(Number.isFinite(previousS1Ms))calculateS1toS1Bpm(t);
-        previousS1Ms=t;
-        currentS1Ms=t;
-        waitingForS2=true;
-        showPhase('S1 (LUB)','beat-s1');
+
+/* =========================================================
+   BLUETOOTH DATA RECEIVER
+========================================================= */
+
+function bluetoothDataReceived(event){
+
+    const value =
+        event.target.value;
+
+    const decoder =
+        new TextDecoder("utf-8");
+
+    const text =
+        decoder.decode(value);
+
+    addTerminalData(text);
+
+    processBluetoothMessage(text);
+}
+
+
+/* =========================================================
+   BLUETOOTH MESSAGE PROCESSING
+========================================================= */
+
+function processBluetoothMessage(text){
+
+    /*
+     * S1 detected
+     */
+
+    if(
+        text.includes("S1 detected") ||
+        text.includes("S1 (LUB)")
+    ){
+
+        phaseDisplay.textContent =
+            "S1 (LUB)";
+
+        calculateBluetoothBpmFromS1(text);
+
+    }
+
+
+    /*
+     * S2 detected
+     */
+
+    if(
+        text.includes("S2 detected") ||
+        text.includes("S2 (DUB)")
+    ){
+
+        phaseDisplay.textContent =
+            "S2 (DUB)";
+    }
+
+
+    /*
+     * Explicit BPM from ESP32
+     */
+
+    const bpmMatch =
+        text.match(
+            /BPM\s*(?:\(pair count\))?\s*=\s*([0-9.]+)/i
+        );
+
+    if(bpmMatch){
+
+        const bpm =
+            parseFloat(bpmMatch[1]);
+
+        if(
+            Number.isFinite(bpm) &&
+            bpm >= 30 &&
+            bpm <= 200
+        ){
+
+            /*
+             * Keep the browser's S1→S1 BPM as
+             * the main BPM.
+             */
+
+            addTerminalData(
+                "ESP32 reported BPM: " +
+                bpm.toFixed(1)
+            );
+
+        }
+
+    }
+
+}
+
+
+/* =========================================================
+   S1 → S1 BPM
+========================================================= */
+
+function calculateBluetoothBpmFromS1(text){
+
+    /*
+     * Use arrival time for Bluetooth S1 events.
+     * The ESP32 sends every S1 message immediately.
+     */
+
+    const now =
+        performance.now();
+
+
+    if(
+        Number.isFinite(previousS1TimeMs)
+    ){
+
+        const interval =
+            now - previousS1TimeMs;
+
+
+        if(
+            interval >= MIN_S1_S1_MS &&
+            interval <= MAX_S1_S1_MS
+        ){
+
+            const bpm =
+                60000 / interval;
+
+
+            if(
+                bpm >= 30 &&
+                bpm <= 200
+            ){
+
+                bpmHistory.push(bpm);
+
+                if(bpmHistory.length > 3){
+                    bpmHistory.shift();
+                }
+
+
+                const sorted =
+                    bpmHistory
+                    .slice()
+                    .sort((a,b)=>a-b);
+
+
+                latestBpm =
+                    sorted[
+                        Math.floor(
+                            sorted.length / 2
+                        )
+                    ];
+
+
+                bpmValid = true;
+
+
+                bpmDisplay.textContent =
+                    Math.round(latestBpm);
+
+
+                addTerminalData(
+                    "Browser S1→S1 BPM = " +
+                    latestBpm.toFixed(1)
+                );
+
+            }
+
+        }
+
+    }
+
+
+    previousS1TimeMs =
+        now;
+}
+
+
+/* =========================================================
+   USB SERIAL
+========================================================= */
+
+document
+.getElementById("usbBtn")
+.addEventListener(
+    "click",
+    connectUSB
+);
+
+
+async function connectUSB(){
+
+    try{
+
+        if(!("serial" in navigator)){
+
+            addTerminalData(
+                "ERROR: Web Serial is not supported."
+            );
+
+            return;
+        }
+
+
+        port =
+            await navigator.serial.requestPort();
+
+
+        await port.open({
+            baudRate:115200
+        });
+
+
+        connectionStatus.textContent =
+            "USB Serial Connected";
+
+
+        addTerminalData(
+            "USB ESP32 connected at 115200 baud."
+        );
+
+
+        readUSBSerial();
+
+
+    }catch(error){
+
+        addTerminalData(
+            "USB ERROR: " +
+            error.message
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   USB SERIAL READER
+========================================================= */
+
+async function readUSBSerial(){
+
+    const decoder =
+        new TextDecoderStream();
+
+    const readableStreamClosed =
+        port.readable.pipeTo(
+            decoder.writable
+        );
+
+    reader =
+        decoder.readable.getReader();
+
+
+    let textBuffer = "";
+
+
+    try{
+
+        while(true){
+
+            const {
+                value,
+                done
+            } = await reader.read();
+
+
+            if(done) break;
+
+
+            textBuffer += value;
+
+
+            const lines =
+                textBuffer.split(/\r?\n/);
+
+
+            textBuffer =
+                lines.pop();
+
+
+            for(
+                const line of lines
+            ){
+
+                if(line.trim()){
+
+                    /*
+                     * SHOW USB SERIAL TERMINAL
+                     */
+
+                    addTerminalData(
+                        "USB: " +
+                        line
+                    );
+
+
+                    processBluetoothMessage(
+                        line
+                    );
+
+                }
+
+            }
+
+        }
+
+    }catch(error){
+
+        addTerminalData(
+            "USB reader error: " +
+            error.message
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   132-BYTE AUDIO PACKET PARSER
+========================================================= */
+
+let packetBuffer =
+    new Uint8Array(0);
+
+
+async function readAudioFromPort(){
+
+    /*
+     * Reserved for binary audio stream.
+     *
+     * Packet:
+     * A5 5A
+     * length = 128
+     * 128 audio bytes
+     * checksum
+     */
+
+}
+
+
+/* =========================================================
+   WAVEFORM
+========================================================= */
+
+function drawWaveform(){
+
+    ctx.clearRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+
+    ctx.beginPath();
+
+
+    const visible =
+        audioBuffer.slice(-1000);
+
+
+    if(visible.length < 2){
+
+        requestAnimationFrame(
+            drawWaveform
+        );
+
         return;
     }
 
-    const gap=t-currentS1Ms;
 
-    // Valid S2. Never calculate BPM from S1->S2.
-    if(gap>=S1_S2_MIN_MS && gap<=S1_S2_MAX_MS){
-        waitingForS2=false;
-        showPhase('S2 (DUB)','beat-s2');
-        return;
+    for(
+        let i=0;
+        i<visible.length;
+        i++
+    ){
+
+        const x =
+            i /
+            (visible.length-1) *
+            canvas.width;
+
+
+        const y =
+            canvas.height/2 -
+            (visible[i]-128) *
+            0.9;
+
+
+        if(i===0)
+            ctx.moveTo(x,y);
+        else
+            ctx.lineTo(x,y);
+
     }
 
-    // If S2 was missed, this event is a new S1. Use S1->S1 timing.
-    if(gap>S1_S2_MAX_MS){
-        calculateS1toS1Bpm(t);
-        currentS1Ms=t;
-        previousS1Ms=t;
-        waitingForS2=true;
-        showPhase('S1 (LUB)','beat-s1');
-    }
-    // Events < S1_S2_MIN_MS are ignored as duplicate/noise.
-}
 
-function calculateS1toS1Bpm(t){
-    if(!Number.isFinite(previousS1Ms)){previousS1Ms=t;return}
-    const interval=t-previousS1Ms;
-    if(interval<MIN_S1_S1_MS||interval>MAX_S1_S1_MS)return;
+    ctx.strokeStyle =
+        "#22d3ee";
 
-    const bpm=60000/interval;
-    if(bpm<30||bpm>200)return;
+    ctx.lineWidth=2;
 
-    bpmHistory.push(bpm);
-    if(bpmHistory.length>5)bpmHistory.shift();
-
-    // Median suppresses one bad detection without making BPM lag badly.
-    const s=bpmHistory.slice().sort((a,b)=>a-b);
-    latestBpm=s[Math.floor(s.length/2)];
-    bpmValid=true;
-    bpmDisplay.textContent=String(Math.round(latestBpm));
-    previousS1Ms=t;
-}
-
-function showPhase(text,animation){
-    phaseDisplay.textContent=text;
-    phaseDisplay.className='stat-value '+(animation==='beat-s1'?'phase-s1':'phase-s2');
-    heartIcon.classList.remove('beat-s1','beat-s2');
-    void heartIcon.offsetWidth;
-    heartIcon.classList.add(animation);
-}
-
-function drawWaveform(payload){
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.strokeStyle='#20202b';ctx.lineWidth=1;
-    ctx.beginPath();ctx.moveTo(0,canvas.height/2);ctx.lineTo(canvas.width,canvas.height/2);ctx.stroke();
-
-    const y1=(1-(128+sensitivity*128)/255)*canvas.height;
-    const y2=(1-(128-sensitivity*128)/255)*canvas.height;
-    ctx.strokeStyle='rgba(233,30,99,.45)';ctx.setLineDash([5,5]);
-    ctx.beginPath();ctx.moveTo(0,y1);ctx.lineTo(canvas.width,y1);ctx.moveTo(0,y2);ctx.lineTo(canvas.width,y2);ctx.stroke();ctx.setLineDash([]);
-
-    ctx.strokeStyle='#00ffcc';ctx.lineWidth=2;ctx.beginPath();
-    const dx=canvas.width/payload.length;
-    for(let i=0;i<payload.length;i++){const y=(1-payload[i]/255)*canvas.height;if(i===0)ctx.moveTo(0,y);else ctx.lineTo(i*dx,y)}
     ctx.stroke();
+
+
+    requestAnimationFrame(
+        drawWaveform
+    );
+
 }
+
+drawWaveform();
+
+
+/* =========================================================
+   BPM DISPLAY — EVERY 1 SECOND
+========================================================= */
+
+setInterval(()=>{
+
+    if(bpmValid){
+
+        bpmDisplay.textContent =
+            String(
+                Math.round(latestBpm)
+            );
+
+    }else{
+
+        bpmDisplay.textContent =
+            "--";
+
+    }
+
+},1000);
+
+
+/* =========================================================
+   DEMO / AUDIO PACKET HANDLER
+========================================================= */
+
+function handleAudioPacket(payload){
+
+    for(
+        let i=0;
+        i<payload.length;
+        i++
+    ){
+
+        audioBuffer.push(
+            payload[i]
+        );
+
+    }
+
+
+    if(audioBuffer.length > 4000){
+
+        audioBuffer =
+            audioBuffer.slice(-4000);
+
+    }
+
+}
+
+
 </script>
+
 </body>
 </html>
