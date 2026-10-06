@@ -1,569 +1,254 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ESP32 Heart Sound Monitor</title>
-    <style>
-        body {
-            background-color: #0d0d12;
-            color: white;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            margin: 0;
-            padding: 20px;
-        }
-
-        h1 { margin-bottom: 5px; letter-spacing: 1px; }
-        p { color: #aaaaaa; margin-bottom: 25px; text-align: center; }
-
-        button {
-            background-color: #e91e63;
-            color: white;
-            border: none;
-            padding: 12px 25px;
-            font-size: 16px;
-            font-weight: bold;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: 0.3s;
-            box-shadow: 0 4px 15px rgba(233, 30, 99, 0.4);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        button:hover { background-color: #d81557; transform: translateY(-2px); }
-
-        .dashboard-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 25px;
-            width: 100%;
-            max-width: 800px;
-            margin-top: 20px;
-        }
-
-        /* Stats Panel */
-        .stats-panel {
-            display: flex;
-            justify-content: center;
-            gap: 40px;
-            background: #1a1a24;
-            padding: 20px 40px;
-            border-radius: 12px;
-            border: 1px solid #333;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.5);
-            width: 100%;
-            box-sizing: border-box;
-        }
-
-        .stat-box {
-            text-align: center;
-            min-width: 150px;
-        }
-
-        .stat-value {
-            font-size: 36px;
-            font-weight: bold;
-            color: #00ffcc;
-            text-shadow: 0 0 10px rgba(0, 255, 204, 0.4);
-            font-family: monospace;
-            height: 45px;
-        }
-
-        .stat-label {
-            font-size: 12px;
-            color: #888;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            margin-top: 5px;
-        }
-
-        .s1-s2-indicator {
-            color: #e91e63;
-            text-shadow: 0 0 10px rgba(233, 30, 99, 0.5);
-        }
-
-        /* Controls Panel */
-        .controls-panel {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            background: #1a1a24;
-            padding: 15px 30px;
-            border-radius: 12px;
-            border: 1px solid #333;
-            width: 100%;
-            box-sizing: border-box;
-        }
-
-        .slider-container {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            width: 100%;
-        }
-
-        .slider-container label {
-            font-size: 14px;
-            color: #bbb;
-            white-space: nowrap;
-        }
-
-        input[type=range] {
-            flex-grow: 1;
-            accent-color: #e91e63;
-        }
-
-        /* Visuals Container */
-        .visuals-panel {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 50px;
-            width: 100%;
-        }
-
-        /* Heart Animation */
-        .heart-container {
-            width: 150px;
-            height: 150px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .heart {
-            background-color: #e91e63;
-            width: 50px;
-            height: 50px;
-            position: relative;
-            transform: rotate(-45deg) scale(1);
-            box-shadow: 0 0 20px rgba(233, 30, 99, 0.4);
-        }
-
-        .heart::before, .heart::after {
-            content: "";
-            background-color: inherit;
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            position: absolute;
-        }
-        .heart::before { top: -25px; left: 0; }
-        .heart::after { top: 0; left: 25px; }
-
-        @keyframes beatS1 {
-            0% { transform: rotate(-45deg) scale(1); box-shadow: 0 0 20px rgba(233, 30, 99, 0.4); }
-            30% { transform: rotate(-45deg) scale(1.25); box-shadow: 0 0 40px rgba(233, 30, 99, 0.8); }
-            100% { transform: rotate(-45deg) scale(1); box-shadow: 0 0 20px rgba(233, 30, 99, 0.4); }
-        }
-
-        @keyframes beatS2 {
-            0% { transform: rotate(-45deg) scale(1); box-shadow: 0 0 20px rgba(233, 30, 99, 0.4); }
-            20% { transform: rotate(-45deg) scale(1.4); box-shadow: 0 0 60px rgba(255, 64, 129, 1); background-color: #ff4081; }
-            100% { transform: rotate(-45deg) scale(1); box-shadow: 0 0 20px rgba(233, 30, 99, 0.4); background-color: #e91e63; }
-        }
-
-        .pulse-s1 { animation: beatS1 0.2s ease-out; }
-        .pulse-s2 { animation: beatS2 0.25s ease-out; }
-
-        canvas {
-            background-color: #111116;
-            border: 2px solid #2a2a35;
-            border-radius: 8px;
-            box-shadow: inset 0 0 20px rgba(0,0,0,0.8), 0 4px 15px rgba(0,0,0,0.3);
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Advanced Heart Sound Monitor</title>
+<style>
+body{background:#0d0d12;color:#fff;font-family:'Segoe UI',Tahoma,sans-serif;display:flex;flex-direction:column;align-items:center;margin:0;padding:20px}
+h1{margin-bottom:5px;font-weight:600} p{color:#888;margin-bottom:25px}
+button{background:#e91e63;color:#fff;border:0;padding:15px 30px;font-size:16px;font-weight:bold;border-radius:8px;cursor:pointer;box-shadow:0 4px 15px rgba(233,30,99,.4);text-transform:uppercase}
+button:hover{background:#d81557}
+.dashboard{display:flex;flex-direction:column;align-items:center;gap:20px;width:100%;max-width:900px;margin-top:20px}
+.stats-panel{display:flex;gap:40px;background:#1a1a24;padding:20px 50px;border-radius:12px;border:1px solid #333;width:100%;box-sizing:border-box;justify-content:center}
+.stat-box{text-align:center;min-width:180px}.stat-value{font-size:42px;font-weight:bold;color:#00ffcc;font-family:monospace;height:50px;text-shadow:0 0 10px rgba(0,255,204,.3)}
+.phase-s1{color:#e91e63}.phase-s2{color:#ff9800}
+.stat-label{font-size:12px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-top:5px}
+.controls{background:#1a1a24;padding:15px 30px;border-radius:12px;border:1px solid #333;width:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:center}
+.controls input{width:100%;max-width:500px;accent-color:#e91e63}
+.visuals{display:flex;align-items:center;gap:40px;width:100%;justify-content:center}
+.heart{background:#333;width:50px;height:50px;position:relative;transform:rotate(-45deg) scale(1)}
+.heart:before,.heart:after{content:"";background:inherit;border-radius:50%;width:50px;height:50px;position:absolute}
+.heart:before{top:-25px;left:0}.heart:after{top:0;left:25px}
+@keyframes s1{0%{transform:rotate(-45deg) scale(1);background:#e91e63}30%{transform:rotate(-45deg) scale(1.3);background:#e91e63;box-shadow:0 0 40px rgba(233,30,99,.8)}100%{transform:rotate(-45deg) scale(1);background:#333}}
+@keyframes s2{0%{transform:rotate(-45deg) scale(1);background:#ff9800}20%{transform:rotate(-45deg) scale(1.45);background:#ff9800;box-shadow:0 0 50px rgba(255,152,0,.8)}100%{transform:rotate(-45deg) scale(1);background:#333}}
+.beat-s1{animation:s1 .25s ease-out forwards}.beat-s2{animation:s2 .30s ease-out forwards}
+canvas{background:#0a0a0f;border:2px solid #222;border-radius:8px}
+@media(max-width:700px){.visuals{flex-direction:column}.stats-panel{gap:15px;padding:15px}.stat-box{min-width:120px}}
+</style>
 </head>
 <body>
+<h1>Advanced Heart Sound Monitor</h1>
+<p>Real-time S1/S2 detection with S1-to-S1 BPM</p>
+<button id="connectBtn">Connect USB Stethoscope</button>
+<div class="dashboard">
+<div class="stats-panel">
+<div class="stat-box"><div class="stat-value" id="phaseDisplay">--</div><div class="stat-label">Cardiac Phase</div></div>
+<div class="stat-box"><div class="stat-value" id="bpmDisplay">--</div><div class="stat-label">Live BPM</div></div>
+</div>
+<div class="controls">
+<label style="margin-bottom:10px;font-size:14px;color:#bbb">Sensitivity Threshold: <span id="threshText">0.04</span></label>
+<input type="range" id="thresholdSlider" min="0.01" max="0.30" step="0.01" value="0.04">
+<div style="margin-top:8px;font-size:11px;color:#666">Start around 0.04 and adjust until heart sounds are detected without continuous noise.</div>
+</div>
+<div class="visuals">
+<div style="width:100px;height:100px;display:flex;align-items:center;justify-content:center"><div class="heart" id="heartIcon"></div></div>
+<canvas id="waveform" width="650" height="220"></canvas>
+</div>
+</div>
+<script>
+const connectBtn=document.getElementById('connectBtn');
+const phaseDisplay=document.getElementById('phaseDisplay');
+const bpmDisplay=document.getElementById('bpmDisplay');
+const heartIcon=document.getElementById('heartIcon');
+const slider=document.getElementById('thresholdSlider');
+const threshText=document.getElementById('threshText');
+const canvas=document.getElementById('waveform');
+const ctx=canvas.getContext('2d');
 
-    <h1>Heart Sound Monitor</h1>
-    <p>Live S1/S2 Detection & Audio Visualizer.</p>
+let audioCtx=null,port=null,dataQueue=[];
+const SAMPLE_RATE=4000,PACKET_SAMPLES=128;
+let nextAudioTime=0,totalSamplesReceived=0;
 
-    <button id="connectBtn">Connect ESP32 (USB)</button>
+let sensitivity=parseFloat(slider.value);
+slider.addEventListener('input',e=>{sensitivity=parseFloat(e.target.value);threshText.textContent=sensitivity.toFixed(2)});
 
-    <div class="dashboard-container">
-        
-        <!-- Live BPM & Beat Stats -->
-        <div class="stats-panel">
-            <div class="stat-box">
-                <div class="stat-value s1-s2-indicator" id="phaseDisplay">--</div>
-                <div class="stat-label">Current Phase</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-value" id="bpmDisplay">0</div>
-                <div class="stat-label">Live BPM (Updated per sec)</div>
-            </div>
-        </div>
+let envelope=0,noiseFloor=0.008;
+let inBurst=false,peakEnvelope=0,peakSample=0,quietSamples=0;
+let lastEventMs=-Infinity;
 
-        <!-- Sensitivity Slider -->
-        <div class="controls-panel">
-            <div class="slider-container">
-                <label>Audio Sensitivity Threshold: <span id="threshText">0.06</span></label>
-                <input type="range" id="thresholdSlider" min="0.02" max="0.80" step="0.01" value="0.06">
-            </div>
-            <p style="margin: 10px 0 0 0; font-size: 11px; color: #666;">Adjust so the pink dashed lines sit just above background noise.</p>
-        </div>
+let waitingForS2=false;
+let currentS1Ms=NaN;
+let previousS1Ms=NaN;
+let bpmHistory=[];
+let latestBpm=0;
+let lastSoundActivityMs=0;
 
-        <div class="visuals-panel">
-            <!-- Visual Heart -->
-            <div class="heart-container">
-                <div class="heart" id="heartIcon"></div>
-            </div>
-            
-            <!-- Sound Waveform -->
-            <canvas id="waveform" width="500" height="200"></canvas>
-        </div>
-    </div>
+const MIN_EVENT_GAP_MS=70;
+const S1_S2_MIN_MS=90;
+const S1_S2_MAX_MS=500;
+const MIN_S1_S1_MS=300;
+const MAX_S1_S1_MS=2000;
 
-    <script>
-        const connectBtn = document.getElementById('connectBtn');
-        const heartIcon = document.getElementById('heartIcon');
-        const phaseDisplay = document.getElementById('phaseDisplay');
-        const bpmDisplay = document.getElementById('bpmDisplay');
-        const thresholdSlider = document.getElementById('thresholdSlider');
-        const threshText = document.getElementById('threshText');
-        const canvas = document.getElementById('waveform');
-        const ctx = canvas.getContext('2d');
+drawWaveform(new Uint8Array(128).fill(128));
 
-        // Audio & Serial Variables
-        let audioCtx;
-        let nextAudioTime = 0;
-        let port;
-        let dataQueue = [];
+setInterval(()=>{
+    if(lastSoundActivityMs>0 && sampleTimeMs()-lastSoundActivityMs>3000){
+        latestBpm=0;bpmHistory=[];waitingForS2=false;previousS1Ms=NaN;currentS1Ms=NaN;
+        phaseDisplay.textContent='--';phaseDisplay.className='stat-value';
+    }
+    bpmDisplay.textContent=latestBpm>0?String(Math.round(latestBpm)):'--';
+},1000);
 
-        // Dynamic Threshold
-        let AMPLITUDE_THRESHOLD = parseFloat(thresholdSlider.value);
-        thresholdSlider.addEventListener('input', (e) => {
-            AMPLITUDE_THRESHOLD = parseFloat(e.target.value);
-            threshText.innerText = AMPLITUDE_THRESHOLD.toFixed(2);
-        });
+function sampleTimeMs(){return totalSamplesReceived/SAMPLE_RATE*1000}
 
-        // -------------------------------------------------------------
-        // ABSOLUTE TIMING VARIABLES
-        // -------------------------------------------------------------
-        let totalSamplesReceived = 0;
-        let lastDetectedEventMs = -Infinity;
+connectBtn.addEventListener('click',async()=>{
+    try{
+        port=await navigator.serial.requestPort();
+        await port.open({baudRate:115200});
+        audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+        await audioCtx.resume();
+        connectBtn.textContent='Connected & Streaming';
+        connectBtn.style.background='#4CAF50';
+        readSerialLoop();
+    }catch(err){console.error(err);alert('Failed to connect. Close Arduino Serial Monitor and try again.')}
+});
 
-        // S1/S2 state machine
-        let waitingForS2 = false;
-        let currentS1TimeMs = NaN;
-        let previousS1TimeMs = NaN;
+async function readSerialLoop(){
+    const reader=port.readable.getReader();
+    try{while(true){const {value,done}=await reader.read();if(done)break;for(const b of value)dataQueue.push(b);processQueue()}}
+    catch(e){console.error('Serial read error:',e)}
+    finally{reader.releaseLock()}
+}
 
-        // BPM is always based on S1 -> S1, never S1 -> S2
-        let latestCalculatedBpm = 0;
-        let bpmBuffer = [];
+function processQueue(){
+    while(dataQueue.length>=132){
+        if(dataQueue[0]!==0xA5||dataQueue[1]!==0x5A||dataQueue[2]!==128){dataQueue.shift();continue}
+        const payload=dataQueue.slice(3,131);
+        let sum=0;for(const b of payload)sum=(sum+b)&255;
+        if(sum!==dataQueue[131]){dataQueue.shift();continue}
+        processAudioPacket(payload);dataQueue.splice(0,132);
+    }
+}
 
-        // Continuous sample-level detector
-        let detectorEnvelope = 0;
-        let noiseFloor = 0.008;
-        let inSoundBurst = false;
-        let burstPeak = 0;
-        let burstPeakSample = 0;
-        let burstStartSample = 0;
-        let belowThresholdSamples = 0;
+function processAudioPacket(payload){
+    if(!audioCtx)return;
+    const buffer=audioCtx.createBuffer(1,PACKET_SAMPLES,SAMPLE_RATE);
+    const channel=buffer.getChannelData(0);
+    for(let i=0;i<PACKET_SAMPLES;i++)channel[i]=(payload[i]-128)/128;
 
-        const SAMPLE_RATE = 4000;
-        const MIN_EVENT_GAP_MS = 75;
-        const S1_S2_MIN_MS = 100;
-        const S1_S2_MAX_MS = 500;
-        const MIN_S1_S1_MS = 300;
-        const MAX_S1_S1_MS = 2000;
+    if(nextAudioTime<audioCtx.currentTime)nextAudioTime=audioCtx.currentTime+0.02;
+    if(nextAudioTime>audioCtx.currentTime+0.30)nextAudioTime=audioCtx.currentTime+0.05;
+    const source=audioCtx.createBufferSource();
+    source.buffer=buffer;source.connect(audioCtx.destination);source.start(nextAudioTime);
+    nextAudioTime+=buffer.duration;
 
-        // Draw initial flatline
-        drawWaveform(new Uint8Array(128).fill(128));
+    detectHeartSounds(payload);
+    drawWaveform(payload);
+    totalSamplesReceived+=PACKET_SAMPLES;
+}
 
-        // =============================================================
-        // EXACTLY 1-SECOND UI REFRESH TIMER
-        // =============================================================
-        setInterval(() => {
-            // The displayed value is refreshed every second, but the value itself
-            // comes only from the latest valid S1-to-S1 interval.
-            if (latestCalculatedBpm > 0) {
-                bpmDisplay.innerText = Math.round(latestCalculatedBpm);
-            } else {
-                bpmDisplay.innerText = "--";
+function detectHeartSounds(payload){
+    for(let i=0;i<payload.length;i++){
+        const sample=(payload[i]-128)/128;
+        const a=Math.abs(sample);
+
+        // Energy/envelope detector: fast attack, slower release.
+        const target=a*a;
+        const attack=0.30,release=0.045;
+        envelope+=((target-envelope)*(target>envelope?attack:release));
+        const energy=Math.sqrt(envelope);
+
+        if(!inBurst)noiseFloor=0.998*noiseFloor+0.002*Math.min(energy,0.08);
+        const threshold=Math.max(sensitivity,noiseFloor*2.0);
+
+        const g=totalSamplesReceived+i;
+        const t=g/SAMPLE_RATE*1000;
+
+        if(!inBurst){
+            if(energy>=threshold && t-lastEventMs>=MIN_EVENT_GAP_MS){
+                inBurst=true;peakEnvelope=energy;peakSample=g;quietSamples=0;
             }
-        }, 1000); // exactly 1 second
+        }else{
+            if(energy>peakEnvelope){peakEnvelope=energy;peakSample=g}
+            if(energy<threshold*0.55)quietSamples++;else quietSamples=0;
 
-        connectBtn.addEventListener('click', async () => {
-            try {
-                port = await navigator.serial.requestPort();
-                await port.open({ baudRate: 115200 });
-
-                connectBtn.innerText = "Connected! Listening...";
-                connectBtn.style.backgroundColor = "#4CAF50";
-
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                readSerialLoop();
-            } catch (err) {
-                console.error('Connection error:', err);
-                alert("Failed to connect. Make sure Arduino Serial Monitor is closed.");
-            }
-        });
-
-        async function readSerialLoop() {
-            const reader = port.readable.getReader();
-            try {
-                while (true) {
-                    const { value, done } = await reader.read();
-                    if (done) break;
-                    for (let i = 0; i < value.length; i++) {
-                        dataQueue.push(value[i]);
-                    }
-                    processQueue();
+            if(quietSamples>=20){
+                const eventMs=peakSample/SAMPLE_RATE*1000;
+                if(eventMs-lastEventMs>=MIN_EVENT_GAP_MS){
+                    registerHeartSound(eventMs);
+                    lastEventMs=eventMs;
+                    lastSoundActivityMs=eventMs;
                 }
-            } catch (error) {
-                console.error("Serial read error:", error);
-            } finally {
-                reader.releaseLock();
+                inBurst=false;peakEnvelope=0;quietSamples=0;
             }
         }
+    }
+}
 
-        function processQueue() {
-            while (dataQueue.length >= 132) {
-                if (dataQueue[0] === 0xA5 && dataQueue[1] === 0x5A && dataQueue[2] === 128) {
-                    let payload = dataQueue.slice(3, 131);
-                    let receivedChecksum = dataQueue[131];
-                    
-                    let calculatedSum = 0;
-                    for (let i = 0; i < 128; i++) {
-                        calculatedSum = (calculatedSum + payload[i]) & 0xFF; 
-                    }
+function registerHeartSound(t){
+    // State 1: no completed S1->S2 pair yet, so first event is S1.
+    if(!waitingForS2){
+        // A new S1 is always the correct place to calculate BPM.
+        if(Number.isFinite(previousS1Ms))calculateS1toS1Bpm(t);
+        previousS1Ms=t;
+        currentS1Ms=t;
+        waitingForS2=true;
+        showPhase('S1 (LUB)','beat-s1');
+        return;
+    }
 
-                    if (calculatedSum === receivedChecksum) {
-                        playAndVisualize(payload);
-                        dataQueue.splice(0, 132);
-                    } else {
-                        dataQueue.shift();
-                    }
-                } else {
-                    dataQueue.shift();
-                }
-            }
-        }
+    const gap=t-currentS1Ms;
 
-        function playAndVisualize(payload) {
-            if (!audioCtx) return;
+    // Valid S2. Never calculate BPM from S1->S2.
+    if(gap>=S1_S2_MIN_MS && gap<=S1_S2_MAX_MS){
+        waitingForS2=false;
+        showPhase('S2 (DUB)','beat-s2');
+        return;
+    }
 
-            const buffer = audioCtx.createBuffer(1, payload.length, SAMPLE_RATE);
-            const channelData = buffer.getChannelData(0);
+    // If S2 was missed, this event is a new S1. Use S1->S1 timing.
+    if(gap>S1_S2_MAX_MS){
+        calculateS1toS1Bpm(t);
+        currentS1Ms=t;
+        previousS1Ms=t;
+        waitingForS2=true;
+        showPhase('S1 (LUB)','beat-s1');
+    }
+    // Events < S1_S2_MIN_MS are ignored as duplicate/noise.
+}
 
-            for (let i = 0; i < payload.length; i++) {
-                channelData[i] = (payload[i] - 128) / 128.0;
-            }
+function calculateS1toS1Bpm(t){
+    if(!Number.isFinite(previousS1Ms)){previousS1Ms=t;return}
+    const interval=t-previousS1Ms;
+    if(interval<MIN_S1_S1_MS||interval>MAX_S1_S1_MS)return;
 
-            // Keep the audio stream continuous.
-            if (nextAudioTime < audioCtx.currentTime) {
-                nextAudioTime = audioCtx.currentTime + 0.02;
-            } else if (nextAudioTime > audioCtx.currentTime + 0.30) {
-                nextAudioTime = audioCtx.currentTime + 0.05;
-            }
+    const bpm=60000/interval;
+    if(bpm<30||bpm>200)return;
 
-            const scheduledStart = nextAudioTime;
-            const source = audioCtx.createBufferSource();
-            source.buffer = buffer;
-            source.connect(audioCtx.destination);
-            source.start(scheduledStart);
-            nextAudioTime += buffer.duration;
+    bpmHistory.push(bpm);
+    if(bpmHistory.length>5)bpmHistory.shift();
 
-            drawWaveform(payload);
+    // Median suppresses one bad detection without making BPM lag badly.
+    const s=bpmHistory.slice().sort((a,b)=>a-b);
+    latestBpm=s[Math.floor(s.length/2)];
+    bpmDisplay.textContent=String(Math.round(latestBpm));
+    previousS1Ms=t;
+}
 
-            // IMPORTANT: analyse every sample, not just the loudest sample
-            // in a 128-sample packet. This prevents S1/S2 timing from being lost.
-            detectHeartSounds(payload);
+function showPhase(text,animation){
+    phaseDisplay.textContent=text;
+    phaseDisplay.className='stat-value '+(animation==='beat-s1'?'phase-s1':'phase-s2');
+    heartIcon.classList.remove('beat-s1','beat-s2');
+    void heartIcon.offsetWidth;
+    heartIcon.classList.add(animation);
+}
 
-            totalSamplesReceived += payload.length;
-        }
+function drawWaveform(payload){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.strokeStyle='#20202b';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(0,canvas.height/2);ctx.lineTo(canvas.width,canvas.height/2);ctx.stroke();
 
-        function detectHeartSounds(payload) {
-            for (let i = 0; i < payload.length; i++) {
-                const sample = (payload[i] - 128) / 128.0;
-                const amplitude = Math.abs(sample);
+    const y1=(1-(128+sensitivity*128)/255)*canvas.height;
+    const y2=(1-(128-sensitivity*128)/255)*canvas.height;
+    ctx.strokeStyle='rgba(233,30,99,.45)';ctx.setLineDash([5,5]);
+    ctx.beginPath();ctx.moveTo(0,y1);ctx.lineTo(canvas.width,y1);ctx.moveTo(0,y2);ctx.lineTo(canvas.width,y2);ctx.stroke();ctx.setLineDash([]);
 
-                // Fast envelope follows heart-sound bursts.
-                detectorEnvelope = 0.82 * detectorEnvelope + 0.18 * amplitude;
-
-                // Slow noise-floor estimate. The heart-sound threshold is never
-                // allowed to fall below the user's selected sensitivity.
-                if (!inSoundBurst) {
-                    noiseFloor = 0.995 * noiseFloor + 0.005 * Math.min(detectorEnvelope, 0.08);
-                }
-
-                const adaptiveThreshold = Math.max(
-                    AMPLITUDE_THRESHOLD,
-                    noiseFloor * 2.2
-                );
-
-                const globalSample = totalSamplesReceived + i;
-                const currentTimeMs = (globalSample / SAMPLE_RATE) * 1000.0;
-
-                if (!inSoundBurst) {
-                    if (detectorEnvelope >= adaptiveThreshold &&
-                        currentTimeMs - lastDetectedEventMs >= MIN_EVENT_GAP_MS) {
-
-                        inSoundBurst = true;
-                        burstPeak = detectorEnvelope;
-                        burstPeakSample = globalSample;
-                        burstStartSample = globalSample;
-                        belowThresholdSamples = 0;
-                    }
-                } else {
-                    if (detectorEnvelope > burstPeak) {
-                        burstPeak = detectorEnvelope;
-                        burstPeakSample = globalSample;
-                    }
-
-                    if (detectorEnvelope < adaptiveThreshold * 0.55) {
-                        belowThresholdSamples++;
-                    } else {
-                        belowThresholdSamples = 0;
-                    }
-
-                    // End the burst only after a short quiet period.
-                    // At 4 kHz, 24 samples = 6 ms.
-                    if (belowThresholdSamples >= 24) {
-                        const eventTimeMs = (burstPeakSample / SAMPLE_RATE) * 1000.0;
-
-                        if (eventTimeMs - lastDetectedEventMs >= MIN_EVENT_GAP_MS) {
-                            registerHeartSound(eventTimeMs);
-                            lastDetectedEventMs = eventTimeMs;
-                        }
-
-                        inSoundBurst = false;
-                        burstPeak = 0;
-                        burstPeakSample = globalSample;
-                        burstStartSample = globalSample;
-                        belowThresholdSamples = 0;
-                    }
-                }
-            }
-        }
-
-        function registerHeartSound(eventTimeMs) {
-            // S1 is the reference point for BPM.
-            // Every new S1 is compared with the PREVIOUS S1.
-            if (!waitingForS2) {
-                // We already completed an S1-S2 pair, so this event is the next S1.
-                calculateS1toS1Bpm(eventTimeMs);
-
-                currentS1TimeMs = eventTimeMs;
-                waitingForS2 = true;
-
-                phaseDisplay.innerText = "S1 (LUB)";
-                triggerAnimation('pulse-s1');
-                return;
-            }
-
-            const s1s2Gap = eventTimeMs - currentS1TimeMs;
-
-            if (s1s2Gap >= S1_S2_MIN_MS && s1s2Gap <= S1_S2_MAX_MS) {
-                // Correct S2: this does NOT calculate BPM.
-                // BPM is calculated only when the NEXT S1 arrives.
-                waitingForS2 = false;
-
-                phaseDisplay.innerText = "S2 (DUB)";
-                triggerAnimation('pulse-s2');
-                return;
-            }
-
-            if (s1s2Gap > S1_S2_MAX_MS) {
-                // S2 was missed. This event is a new S1.
-                calculateS1toS1Bpm(eventTimeMs);
-
-                currentS1TimeMs = eventTimeMs;
-                waitingForS2 = true;
-
-                phaseDisplay.innerText = "S1 (LUB)";
-                triggerAnimation('pulse-s1');
-                return;
-            }
-
-            // <100 ms after S1: ignore as noise/repeated detection.
-        }
-
-        function calculateS1toS1Bpm(newS1TimeMs) {
-            if (!Number.isFinite(previousS1TimeMs)) {
-                // First S1: establish the reference only.
-                previousS1TimeMs = newS1TimeMs;
-                return;
-            }
-
-            const intervalMs = newS1TimeMs - previousS1TimeMs;
-
-            // Normal adult heart-rate range plus a little engineering tolerance.
-            if (intervalMs >= MIN_S1_S1_MS && intervalMs <= MAX_S1_S1_MS) {
-                const instantBpm = 60000 / intervalMs;
-
-                if (instantBpm >= 30 && instantBpm <= 200) {
-                    bpmBuffer.push(instantBpm);
-                    if (bpmBuffer.length > 3) bpmBuffer.shift();
-
-                    // Median is more robust than averaging when one detection
-                    // is slightly early/late.
-                    const sorted = bpmBuffer.slice().sort((x, y) => x - y);
-                    latestCalculatedBpm = sorted[Math.floor(sorted.length / 2)];
-
-                    // Put the value on screen immediately; the 1-second timer
-                    // also refreshes it so the display remains stable.
-                    bpmDisplay.innerText = String(Math.round(latestCalculatedBpm));
-                }
-
-                // This is the critical step:
-                // the CURRENT S1 becomes the reference for the NEXT S1.
-                previousS1TimeMs = newS1TimeMs;
-            }
-        }
-
-        function triggerAnimation(animationClass) {
-            heartIcon.classList.remove('pulse-s1', 'pulse-s2');
-            void heartIcon.offsetWidth; // Force CSS reflow
-            heartIcon.classList.add(animationClass);
-        }
-
-        function drawWaveform(payload) {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            ctx.strokeStyle = "#2a2a35";
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(0, canvas.height / 2);
-            ctx.lineTo(canvas.width, canvas.height / 2);
-            ctx.stroke();
-
-            let upperVal = (AMPLITUDE_THRESHOLD * 128) + 128;
-            let lowerVal = (-AMPLITUDE_THRESHOLD * 128) + 128;
-            let upperY = (1 - (upperVal / 255.0)) * canvas.height;
-            let lowerY = (1 - (lowerVal / 255.0)) * canvas.height;
-
-            ctx.strokeStyle = "rgba(233, 30, 99, 0.5)";
-            ctx.setLineDash([5, 5]); 
-            ctx.beginPath();
-            ctx.moveTo(0, upperY); ctx.lineTo(canvas.width, upperY);
-            ctx.moveTo(0, lowerY); ctx.lineTo(canvas.width, lowerY);
-            ctx.stroke();
-            ctx.setLineDash([]); 
-
-            ctx.strokeStyle = "#00ffcc";
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            
-            let sliceWidth = canvas.width / payload.length;
-            let x = 0;
-
-            for(let i = 0; i < payload.length; i++) {
-                let v = payload[i] / 255.0; 
-                let y = (1 - v) * canvas.height;
-                if(i === 0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
-                x += sliceWidth;
-            }
-            ctx.stroke();
-        }
-    </script>
+    ctx.strokeStyle='#00ffcc';ctx.lineWidth=2;ctx.beginPath();
+    const dx=canvas.width/payload.length;
+    for(let i=0;i<payload.length;i++){const y=(1-payload[i]/255)*canvas.height;if(i===0)ctx.moveTo(0,y);else ctx.lineTo(i*dx,y)}
+    ctx.stroke();
+}
+</script>
 </body>
 </html>
