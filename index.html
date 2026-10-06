@@ -34,7 +34,7 @@ canvas{background:#0a0a0f;border:2px solid #222;border-radius:8px}
 <div class="dashboard">
 <div class="stats-panel">
 <div class="stat-box"><div class="stat-value" id="phaseDisplay">--</div><div class="stat-label">Cardiac Phase</div></div>
-<div class="stat-box"><div class="stat-value" id="bpmDisplay">--</div><div class="stat-label">Live BPM</div></div>
+<div class="stat-box"><div class="stat-value" id="bpmDisplay">--</div><div class="stat-label">Live BPM • S1→S1 • 1 SEC</div></div>
 </div>
 <div class="controls">
 <label style="margin-bottom:10px;font-size:14px;color:#bbb">Sensitivity Threshold: <span id="threshText">0.04</span></label>
@@ -72,6 +72,7 @@ let currentS1Ms=NaN;
 let previousS1Ms=NaN;
 let bpmHistory=[];
 let latestBpm=0;
+let bpmValid=false;
 let lastSoundActivityMs=0;
 
 const MIN_EVENT_GAP_MS=70;
@@ -84,10 +85,10 @@ drawWaveform(new Uint8Array(128).fill(128));
 
 setInterval(()=>{
     if(lastSoundActivityMs>0 && sampleTimeMs()-lastSoundActivityMs>3000){
-        latestBpm=0;bpmHistory=[];waitingForS2=false;previousS1Ms=NaN;currentS1Ms=NaN;
+        latestBpm=0;bpmValid=false;bpmHistory=[];waitingForS2=false;previousS1Ms=NaN;currentS1Ms=NaN;
         phaseDisplay.textContent='--';phaseDisplay.className='stat-value';
     }
-    bpmDisplay.textContent=latestBpm>0?String(Math.round(latestBpm)):'--';
+    bpmDisplay.textContent=bpmValid?String(Math.round(latestBpm)):'--';
 },1000);
 
 function sampleTimeMs(){return totalSamplesReceived/SAMPLE_RATE*1000}
@@ -222,6 +223,7 @@ function calculateS1toS1Bpm(t){
     // Median suppresses one bad detection without making BPM lag badly.
     const s=bpmHistory.slice().sort((a,b)=>a-b);
     latestBpm=s[Math.floor(s.length/2)];
+    bpmValid=true;
     bpmDisplay.textContent=String(Math.round(latestBpm));
     previousS1Ms=t;
 }
