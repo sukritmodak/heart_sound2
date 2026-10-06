@@ -5,28 +5,28 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ESP32 Heart Sound Monitor</title>
 <style>
-body{background:#0d0d12;color:white;font-family:'Segoe UI',sans-serif;display:flex;flex-direction:column;align-items:center;margin:0;padding:20px}
-h1{margin-bottom:5px;letter-spacing:1px}p{color:#aaa;margin-bottom:25px;text-align:center}
-button{background:#e91e63;color:white;border:0;padding:12px 25px;font-size:16px;font-weight:bold;border-radius:8px;cursor:pointer;box-shadow:0 4px 15px rgba(233,30,99,.4);text-transform:uppercase;letter-spacing:1px}
+*{box-sizing:border-box}
+body{margin:0;padding:20px;background:#0d0d12;color:#fff;font-family:"Segoe UI",Tahoma,sans-serif;display:flex;flex-direction:column;align-items:center}
+h1{margin:0 0 5px;letter-spacing:1px}p{color:#aaa;margin:0 0 25px;text-align:center}
+button{background:#e91e63;color:#fff;border:0;padding:12px 25px;font-size:16px;font-weight:bold;border-radius:8px;cursor:pointer;box-shadow:0 4px 15px rgba(233,30,99,.4);text-transform:uppercase;letter-spacing:1px}
 button:hover{background:#d81557;transform:translateY(-2px)}
-.dashboard-container{display:flex;flex-direction:column;align-items:center;gap:30px;width:100%;max-width:900px;margin-top:20px}
-.stats-panel{display:flex;justify-content:center;gap:40px;background:#1a1a24;padding:20px 40px;border-radius:12px;border:1px solid #333;box-shadow:0 8px 25px rgba(0,0,0,.5);width:100%;box-sizing:border-box}
-.stat-box{text-align:center;min-width:150px}.stat-value{font-size:36px;font-weight:bold;color:#00ffcc;text-shadow:0 0 10px rgba(0,255,204,.4);font-family:monospace;height:45px}.stat-label{font-size:12px;color:#888;text-transform:uppercase;letter-spacing:2px;margin-top:5px}.s1-s2-indicator{color:#e91e63}
+.dashboard-container{display:flex;flex-direction:column;align-items:center;gap:24px;width:100%;max-width:900px;margin-top:20px}
+.stats-panel{display:flex;justify-content:center;gap:40px;background:#1a1a24;padding:20px 40px;border-radius:12px;border:1px solid #333;width:100%}
+.stat-box{text-align:center;min-width:150px}.stat-value{font-size:36px;font-weight:bold;color:#00ffcc;font-family:monospace;height:45px}.stat-label{font-size:12px;color:#888;text-transform:uppercase;letter-spacing:2px;margin-top:5px}.s1-s2-indicator{color:#e91e63}
 .visuals-panel{display:flex;align-items:center;justify-content:center;gap:40px;width:100%;flex-wrap:wrap}
 .heart-container{width:150px;height:150px;display:flex;justify-content:center;align-items:center}
 .heart{background:#e91e63;width:50px;height:50px;position:relative;transform:rotate(-45deg) scale(1);box-shadow:0 0 20px rgba(233,30,99,.4)}
-.heart:before,.heart:after{content:"";background:inherit;border-radius:50%;width:50px;height:50px;position:absolute}.heart:before{top:-25px}.heart:after{left:25px}
+.heart:before,.heart:after{content:"";background:inherit;border-radius:50%;width:50px;height:50px;position:absolute}.heart:before{top:-25px;left:0}.heart:after{top:0;left:25px}
 @keyframes beatS1{0%{transform:rotate(-45deg) scale(1)}30%{transform:rotate(-45deg) scale(1.25)}100%{transform:rotate(-45deg) scale(1)}}
 @keyframes beatS2{0%{transform:rotate(-45deg) scale(1)}20%{transform:rotate(-45deg) scale(1.4)}100%{transform:rotate(-45deg) scale(1)}}
 .pulse-s1{animation:beatS1 .2s ease-out}.pulse-s2{animation:beatS2 .25s ease-out}
-canvas{background:#111116;border:2px solid #2a2a35;border-radius:8px;box-shadow:inset 0 0 20px rgba(0,0,0,.8);max-width:100%;height:auto}
-.info{width:100%;box-sizing:border-box;background:#14141d;border:1px solid #292936;border-radius:10px;padding:12px 16px;color:#999;font-size:13px}
-.good{color:#00ffcc}
+canvas{background:#111116;border:2px solid #2a2a35;border-radius:8px;max-width:100%;height:auto}
+.info{width:100%;background:#14141d;border:1px solid #292936;border-radius:10px;padding:12px 16px;color:#999;font-size:13px}.good{color:#00ffcc}
 </style>
 </head>
 <body>
 <h1>Heart Sound Monitor</h1>
-<p>Live S1/S2 Detection, Smoothed Waveform & BPM</p>
+<p>Live S1/S2 Detection, Smoothed Waveform &amp; BPM</p>
 <button id="connectBtn">Connect ESP32 (USB)</button>
 <div class="dashboard-container">
 <div class="stats-panel">
@@ -40,144 +40,68 @@ canvas{background:#111116;border:2px solid #2a2a35;border-radius:8px;box-shadow:
 <div class="info" id="status">Waiting for ESP32...</div>
 </div>
 <script>
-const connectBtn=document.getElementById('connectBtn');
-const heartIcon=document.getElementById('heartIcon');
-const phaseDisplay=document.getElementById('phaseDisplay');
-const bpmDisplay=document.getElementById('bpmDisplay');
-const canvas=document.getElementById('waveform');
-const ctx=canvas.getContext('2d');
-const statusEl=document.getElementById('status');
-
+const connectBtn=document.getElementById("connectBtn"),heartIcon=document.getElementById("heartIcon"),phaseDisplay=document.getElementById("phaseDisplay"),bpmDisplay=document.getElementById("bpmDisplay"),canvas=document.getElementById("waveform"),ctx=canvas.getContext("2d"),statusEl=document.getElementById("status");
 let audioCtx=null,nextAudioTime=0,port=null,dataQueue=[];
-const SAMPLE_RATE=4000;
-const BLOCK_SIZE=128;
-const MIN_EVENT_GAP_MS=110;
-const S1_S2_MIN_MS=100;
-const S1_S2_MAX_MS=500;
-const MIN_S1_INTERVAL_MS=350;
-const MAX_S1_INTERVAL_MS=2000;
-
-let sampleClock=0;
-let lastEventSample=-Infinity;
-let lastS1Sample=-Infinity;
-let waitingForS2=false;
-let bpmHistory=[];
-let envelope=0;
-let noiseFloor=0.018;
-let aboveCount=0;
-let belowCount=0;
-let previousEnvelope=0;
-let recentEnvelope=[];
+const SAMPLE_RATE=4000,BLOCK_SIZE=128;
+const MIN_EVENT_GAP_MS=110,S1_S2_MIN_MS=100,S1_S2_MAX_MS=500,MIN_S1_INTERVAL_MS=350,MAX_S1_INTERVAL_MS=2000;
+let sampleClock=0,lastEventSample=-Infinity,lastS1Sample=-Infinity,waitingForS2=false,bpmHistory=[];
+let envelope=0,noiseFloor=0.018,aboveCount=0,previousEnvelope=0;
 const DISPLAY_SAMPLES=700;
+canvas._wave=[];
+function clearCanvas(){ctx.fillStyle="#111116";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.strokeStyle="#444";ctx.beginPath();ctx.moveTo(0,canvas.height/2);ctx.lineTo(canvas.width,canvas.height/2);ctx.stroke()}clearCanvas();
 
-ctx.lineWidth=2;
-ctx.strokeStyle='#00ffcc';
-
-function clearCanvas(){
-ctx.fillStyle='#111116';ctx.fillRect(0,0,canvas.width,canvas.height);
-ctx.strokeStyle='#444';ctx.beginPath();ctx.moveTo(0,canvas.height/2);ctx.lineTo(canvas.width,canvas.height/2);ctx.stroke();
-}
-clearCanvas();
-
-connectBtn.addEventListener('click',async()=>{
+connectBtn.addEventListener("click",async()=>{
 try{
-port=await navigator.serial.requestPort();
-await port.open({baudRate:115200});
-connectBtn.textContent='Connected! Listening...';
-connectBtn.style.background='#4CAF50';
-audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-await audioCtx.resume();
-statusEl.innerHTML='<span class="good">ESP32 connected — receiving 4000 Hz audio</span>';
-readSerialLoop();
-}catch(err){console.error(err);alert('Failed to connect. Make sure Arduino Serial Monitor is closed.');}
+port=await navigator.serial.requestPort();await port.open({baudRate:115200});
+connectBtn.textContent="Connected! Listening...";connectBtn.style.background="#4CAF50";
+audioCtx=new(window.AudioContext||window.webkitAudioContext)();await audioCtx.resume();
+statusEl.innerHTML='<span class="good">ESP32 connected — receiving 4000 Hz audio</span>';readSerialLoop();
+}catch(err){console.error(err);alert("Failed to connect. Make sure Arduino Serial Monitor is closed.");}
 });
 
-async function readSerialLoop(){
-const reader=port.readable.getReader();
-try{while(true){const{value,done}=await reader.read();if(done)break;for(const b of value)dataQueue.push(b);processQueue();}}
-catch(e){console.error('Serial read error:',e);statusEl.textContent='Serial connection stopped.'}
-finally{reader.releaseLock();}
-}
+async function readSerialLoop(){const reader=port.readable.getReader();try{while(true){const{value,done}=await reader.read();if(done)break;for(const byte of value)dataQueue.push(byte);processQueue()}}catch(error){console.error("Serial read error:",error);statusEl.textContent="Serial connection stopped."}finally{reader.releaseLock()}}
 
 function processQueue(){
 while(dataQueue.length>=132){
 if(dataQueue[0]!==0xA5||dataQueue[1]!==0x5A||dataQueue[2]!==128){dataQueue.shift();continue}
-const payload=dataQueue.slice(3,131),checksum=dataQueue[131];
-let sum=0;for(const v of payload)sum=(sum+v)&255;
-if(sum!==checksum){dataQueue.shift();continue}
-playAndVisualize(payload);dataQueue.splice(0,132);
-}
-}
+const payload=dataQueue.slice(3,131),receivedChecksum=dataQueue[131];let calculatedChecksum=0;
+for(const value of payload)calculatedChecksum=(calculatedChecksum+value)&255;
+if(calculatedChecksum===receivedChecksum){playAndVisualize(payload);dataQueue.splice(0,132)}else dataQueue.shift();
+}}
 
 function playAndVisualize(payload){
 if(!audioCtx)return;
-const buffer=audioCtx.createBuffer(1,payload.length,SAMPLE_RATE);
-const ch=buffer.getChannelData(0);
-for(let i=0;i<payload.length;i++)ch[i]=(payload[i]-128)/128;
-
-const source=audioCtx.createBufferSource();
-source.buffer=buffer;source.connect(audioCtx.destination);
-if(nextAudioTime<audioCtx.currentTime)nextAudioTime=audioCtx.currentTime+0.02;
-if(nextAudioTime>audioCtx.currentTime+0.3)nextAudioTime=audioCtx.currentTime+0.05;
+const buffer=audioCtx.createBuffer(1,payload.length,SAMPLE_RATE),channelData=buffer.getChannelData(0);
+for(let i=0;i<payload.length;i++)channelData[i]=(payload[i]-128)/128;
+const source=audioCtx.createBufferSource();source.buffer=buffer;source.connect(audioCtx.destination);
+if(nextAudioTime<audioCtx.currentTime)nextAudioTime=audioCtx.currentTime+.02;
+if(nextAudioTime>audioCtx.currentTime+.3)nextAudioTime=audioCtx.currentTime+.05;
 source.start(nextAudioTime);nextAudioTime+=buffer.duration;
-
-processHeartSound(payload);
-drawWaveform(payload);
+processHeartSound(payload);drawWaveform(payload);
 }
 
 function processHeartSound(payload){
 for(let i=0;i<payload.length;i++){
-const x=(payload[i]-128)/128;
-const rectified=Math.abs(x);
-envelope=0.82*envelope+0.18*rectified;
-
-recentEnvelope.push(envelope);
-if(recentEnvelope.length>160)recentEnvelope.shift();
-
-if(envelope<noiseFloor*1.35)noiseFloor=0.995*noiseFloor+0.005*envelope;
-
-const adaptiveThreshold=Math.max(0.055,noiseFloor*2.8);
-const strongThreshold=Math.max(0.075,noiseFloor*3.8);
-
+const x=(payload[i]-128)/128,rectified=Math.abs(x);
+envelope=.82*envelope+.18*rectified;
+if(envelope<noiseFloor*1.35)noiseFloor=.995*noiseFloor+.005*envelope;
+const adaptiveThreshold=Math.max(.055,noiseFloor*2.8);
 if(envelope>adaptiveThreshold)aboveCount++;else aboveCount=0;
-if(envelope<adaptiveThreshold*0.72)belowCount++;else belowCount=0;
-
 const sampleIndex=sampleClock++;
-const ms=sampleIndex*1000/SAMPLE_RATE;
-
-const rising=aboveCount>=5 && previousEnvelope<=adaptiveThreshold;
-const strong=rising && envelope>=strongThreshold;
-
-if((rising||strong) && sampleIndex-lastEventSample>=MIN_EVENT_GAP_MS*SAMPLE_RATE/1000){
-lastEventSample=sampleIndex;
-registerSoundEvent(sampleIndex,ms);
-}
-
+const rising=aboveCount>=5&&previousEnvelope<=adaptiveThreshold;
+if(rising&&sampleIndex-lastEventSample>=MIN_EVENT_GAP_MS*SAMPLE_RATE/1000){lastEventSample=sampleIndex;registerSoundEvent(sampleIndex)}
 previousEnvelope=envelope;
-}
-}
+}}
 
-function registerSoundEvent(sampleIndex,ms){
+function registerSoundEvent(sampleIndex){
 if(!waitingForS2){
-waitingForS2=true;
-phaseDisplay.textContent='S1 (LUB)';
-triggerAnimation('pulse-s1');
-updateBpmFromS1(sampleIndex);
-return;
+waitingForS2=true;phaseDisplay.textContent="S1 (LUB)";triggerAnimation("pulse-s1");updateBpmFromS1(sampleIndex);return;
 }
-
 const gapMs=(sampleIndex-lastS1Sample)*1000/SAMPLE_RATE;
 if(gapMs>=S1_S2_MIN_MS&&gapMs<=S1_S2_MAX_MS){
-phaseDisplay.textContent='S2 (DUB)';
-triggerAnimation('pulse-s2');
-waitingForS2=false;
+phaseDisplay.textContent="S2 (DUB)";triggerAnimation("pulse-s2");waitingForS2=false;
 }else if(gapMs>S1_S2_MAX_MS){
-lastS1Sample=sampleIndex;
-phaseDisplay.textContent='S1 (LUB)';
-triggerAnimation('pulse-s1');
-updateBpmFromS1(sampleIndex);
-}else{
-// Too close to the previous S1; ignore it rather than corrupting BPM.
+lastS1Sample=sampleIndex;phaseDisplay.textContent="S1 (LUB)";triggerAnimation("pulse-s1");updateBpmFromS1(sampleIndex);
 }
 }
 
@@ -187,38 +111,22 @@ const intervalMs=(sampleIndex-lastS1Sample)*1000/SAMPLE_RATE;
 if(intervalMs>=MIN_S1_INTERVAL_MS&&intervalMs<=MAX_S1_INTERVAL_MS){
 const bpm=60000/intervalMs;
 if(bpm>=30&&bpm<=170){
-bpmHistory.push(bpm);
-if(bpmHistory.length>5)bpmHistory.shift();
-const sorted=[...bpmHistory].sort((a,b)=>a-b);
-const median=sorted[Math.floor(sorted.length/2)];
+bpmHistory.push(bpm);if(bpmHistory.length>5)bpmHistory.shift();
+const sorted=[...bpmHistory].sort((a,b)=>a-b),median=sorted[Math.floor(sorted.length/2)];
 bpmDisplay.textContent=Math.round(median);
-}
-}
-}
+}}}
 lastS1Sample=sampleIndex;
 }
 
-function triggerAnimation(cls){
-heartIcon.classList.remove('pulse-s1','pulse-s2');void heartIcon.offsetWidth;heartIcon.classList.add(cls);
-}
+function triggerAnimation(animationClass){heartIcon.classList.remove("pulse-s1","pulse-s2");void heartIcon.offsetWidth;heartIcon.classList.add(animationClass)}
 
 function drawWaveform(payload){
-const values=[];
-for(const v of payload)values.push((v-128)/128);
-const old=canvas._wave||[];
-for(const v of values)old.push(v);
-while(old.length>DISPLAY_SAMPLES)old.shift();
-canvas._wave=old;
-
-ctx.fillStyle='#111116';ctx.fillRect(0,0,canvas.width,canvas.height);
-ctx.strokeStyle='#333';ctx.beginPath();ctx.moveTo(0,canvas.height/2);ctx.lineTo(canvas.width,canvas.height/2);ctx.stroke();
-
-ctx.strokeStyle='#00ffcc';ctx.lineWidth=1.5;ctx.beginPath();
-for(let i=0;i<old.length;i++){
-const x=i*(canvas.width-1)/(DISPLAY_SAMPLES-1);
-const y=canvas.height/2-old[i]*(canvas.height*0.42);
-if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
-}
+const values=[];for(const value of payload)values.push((value-128)/128);
+const old=canvas._wave||[];for(const value of values)old.push(value);while(old.length>DISPLAY_SAMPLES)old.shift();canvas._wave=old;
+ctx.fillStyle="#111116";ctx.fillRect(0,0,canvas.width,canvas.height);
+ctx.strokeStyle="#333";ctx.beginPath();ctx.moveTo(0,canvas.height/2);ctx.lineTo(canvas.width,canvas.height/2);ctx.stroke();
+ctx.strokeStyle="#00ffcc";ctx.lineWidth=1.5;ctx.beginPath();
+for(let i=0;i<old.length;i++){const x=i*(canvas.width-1)/(DISPLAY_SAMPLES-1),y=canvas.height/2-old[i]*(canvas.height*.42);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)}
 ctx.stroke();
 }
 </script>
