@@ -44,7 +44,7 @@ const connectBtn=document.getElementById("connectBtn"),heartIcon=document.getEle
 let audioCtx=null,nextAudioTime=0,port=null,dataQueue=[];
 const SAMPLE_RATE=4000,BLOCK_SIZE=128;
 const MIN_EVENT_GAP_MS=110,S1_S2_MIN_MS=100,S1_S2_MAX_MS=500,MIN_S1_INTERVAL_MS=350,MAX_S1_INTERVAL_MS=2000;
-let sampleClock=0,lastEventSample=-Infinity,lastS1Sample=-Infinity,waitingForS2=false,bpmHistory=[];
+let sampleClock=0,lastEventSample=-Infinity,lastS1Sample=-Infinity,previousS1IntervalMs=NaN,waitingForS2=false,bpmHistory=[];
 let envelope=0,noiseFloor=0.018,aboveCount=0,previousEnvelope=0;
 const DISPLAY_SAMPLES=700;
 canvas._wave=[];
