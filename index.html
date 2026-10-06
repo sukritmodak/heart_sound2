@@ -95,13 +95,13 @@ previousEnvelope=envelope;
 
 function registerSoundEvent(sampleIndex){
 if(!waitingForS2){
-waitingForS2=true;phaseDisplay.textContent="S1 (LUB)";triggerAnimation("pulse-s1");updateBpmFromS1(sampleIndex);return;
+waitingForS2=true;phaseDisplay.textContent="S1 (SYSTOLIC)";triggerAnimation("pulse-s1");updateBpmFromS1(sampleIndex);return;
 }
 const gapMs=(sampleIndex-lastS1Sample)*1000/SAMPLE_RATE;
 if(gapMs>=S1_S2_MIN_MS&&gapMs<=S1_S2_MAX_MS){
-phaseDisplay.textContent="S2 (DUB)";triggerAnimation("pulse-s2");waitingForS2=false;
+phaseDisplay.textContent="S2 (DIASTOLIC)";triggerAnimation("pulse-s2");waitingForS2=false;
 }else if(gapMs>S1_S2_MAX_MS){
-lastS1Sample=sampleIndex;phaseDisplay.textContent="S1 (LUB)";triggerAnimation("pulse-s1");updateBpmFromS1(sampleIndex);
+waitingForS2=true;phaseDisplay.textContent="S1 (SYSTOLIC)";triggerAnimation("pulse-s1");updateBpmFromS1(sampleIndex);
 }
 }
 
@@ -109,16 +109,24 @@ function updateBpmFromS1(sampleIndex){
 if(lastS1Sample!==-Infinity){
 const intervalMs=(sampleIndex-lastS1Sample)*1000/SAMPLE_RATE;
 if(intervalMs>=MIN_S1_INTERVAL_MS&&intervalMs<=MAX_S1_INTERVAL_MS){
+previousS1IntervalMs=intervalMs;
 const bpm=60000/intervalMs;
 if(bpm>=30&&bpm<=170){
-bpmHistory.push(bpm);if(bpmHistory.length>5)bpmHistory.shift();
-const sorted=[...bpmHistory].sort((a,b)=>a-b),median=sorted[Math.floor(sorted.length/2)];
-bpmDisplay.textContent=Math.round(median);
+bpmHistory.push(bpm);if(bpmHistory.length>3)bpmHistory.shift();
+const sorted=[...bpmHistory].sort((a,b)=>a-b);
+bpmDisplay.textContent=Math.round(sorted[Math.floor(sorted.length/2)]);
 }}}
 lastS1Sample=sampleIndex;
 }
 
 function triggerAnimation(animationClass){heartIcon.classList.remove("pulse-s1","pulse-s2");void heartIcon.offsetWidth;heartIcon.classList.add(animationClass)}
+
+setInterval(()=>{
+if(Number.isFinite(previousS1IntervalMs)){
+const bpm=60000/previousS1IntervalMs;
+if(bpm>=30&&bpm<=170)bpmDisplay.textContent=Math.round(bpm);
+}
+},1000);
 
 function drawWaveform(payload){
 const values=[];for(const value of payload)values.push((value-128)/128);
