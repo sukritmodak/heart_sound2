@@ -5,137 +5,161 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ESP32 Heart Sound Monitor</title>
 <style>
-*{box-sizing:border-box}
-body{margin:0;padding:20px;background:#0d0d12;color:#fff;font-family:"Segoe UI",Tahoma,sans-serif;display:flex;flex-direction:column;align-items:center}
-h1{margin:0 0 5px;letter-spacing:1px}p{color:#aaa;margin:0 0 25px;text-align:center}
-button{background:#e91e63;color:#fff;border:0;padding:12px 25px;font-size:16px;font-weight:bold;border-radius:8px;cursor:pointer;box-shadow:0 4px 15px rgba(233,30,99,.4);text-transform:uppercase;letter-spacing:1px}
-button:hover{background:#d81557;transform:translateY(-2px)}
-.dashboard-container{display:flex;flex-direction:column;align-items:center;gap:24px;width:100%;max-width:900px;margin-top:20px}
-.stats-panel{display:flex;justify-content:center;gap:40px;background:#1a1a24;padding:20px 40px;border-radius:12px;border:1px solid #333;width:100%}
-.stat-box{text-align:center;min-width:150px}.stat-value{font-size:36px;font-weight:bold;color:#00ffcc;font-family:monospace;height:45px}.stat-label{font-size:12px;color:#888;text-transform:uppercase;letter-spacing:2px;margin-top:5px}.s1-s2-indicator{color:#e91e63}
-.visuals-panel{display:flex;align-items:center;justify-content:center;gap:40px;width:100%;flex-wrap:wrap}
-.heart-container{width:150px;height:150px;display:flex;justify-content:center;align-items:center}
-.heart{background:#e91e63;width:50px;height:50px;position:relative;transform:rotate(-45deg) scale(1);box-shadow:0 0 20px rgba(233,30,99,.4)}
-.heart:before,.heart:after{content:"";background:inherit;border-radius:50%;width:50px;height:50px;position:absolute}.heart:before{top:-25px;left:0}.heart:after{top:0;left:25px}
-@keyframes beatS1{0%{transform:rotate(-45deg) scale(1)}30%{transform:rotate(-45deg) scale(1.25)}100%{transform:rotate(-45deg) scale(1)}}
-@keyframes beatS2{0%{transform:rotate(-45deg) scale(1)}20%{transform:rotate(-45deg) scale(1.4)}100%{transform:rotate(-45deg) scale(1)}}
-.pulse-s1{animation:beatS1 .2s ease-out}.pulse-s2{animation:beatS2 .25s ease-out}
+*{box-sizing:border-box}body{margin:0;padding:20px;background:#0d0d12;color:#fff;font-family:Segoe UI,Tahoma,sans-serif;display:flex;flex-direction:column;align-items:center}
+h1{margin:0 0 5px;letter-spacing:1px}p{color:#aaa;margin:0 0 22px;text-align:center}
+button{background:#e91e63;color:#fff;border:0;padding:12px 25px;font-size:16px;font-weight:700;border-radius:8px;cursor:pointer}
+button:disabled{opacity:.7}.dashboard{width:100%;max-width:1000px;margin-top:20px}
+.stats{display:flex;justify-content:center;gap:45px;background:#1a1a24;padding:20px;border-radius:12px;border:1px solid #333}
+.stat{text-align:center;min-width:170px}.value{font-size:36px;font-weight:700;color:#00ffcc;font-family:monospace;height:45px}.label{font-size:12px;color:#888;text-transform:uppercase;letter-spacing:2px;margin-top:5px}
+.visuals{display:flex;align-items:center;justify-content:center;gap:35px;flex-wrap:wrap;margin-top:25px}
+.heartBox{width:170px;height:170px;display:flex;align-items:center;justify-content:center}
+.heart{width:54px;height:54px;background:#e91e63;position:relative;transform:rotate(-45deg) scale(1);box-shadow:0 0 20px rgba(233,30,99,.45)}
+.heart:before,.heart:after{content:"";position:absolute;width:54px;height:54px;background:inherit;border-radius:50%}.heart:before{top:-27px;left:0}.heart:after{top:0;left:27px}
+@keyframes s1beat{0%{transform:rotate(-45deg) scale(1)}18%{transform:rotate(-45deg) scale(1.38)}42%{transform:rotate(-45deg) scale(1.08)}100%{transform:rotate(-45deg) scale(1)}}
+@keyframes s2beat{0%{transform:rotate(-45deg) scale(1)}15%{transform:rotate(-45deg) scale(1.18)}35%{transform:rotate(-45deg) scale(1.30)}100%{transform:rotate(-45deg) scale(1)}}
+.pulse-s1{animation:s1beat .22s ease-out}.pulse-s2{animation:s2beat .18s ease-out}
 canvas{background:#111116;border:2px solid #2a2a35;border-radius:8px;max-width:100%;height:auto}
-.info{width:100%;background:#14141d;border:1px solid #292936;border-radius:10px;padding:12px 16px;color:#999;font-size:13px}.good{color:#00ffcc}
+.info{margin-top:22px;width:100%;background:#14141d;border:1px solid #292936;border-radius:10px;padding:12px 16px;color:#999;font-size:13px}.good{color:#00ffcc}
+.legend{margin-top:10px;color:#777;font-size:12px;text-align:center}
 </style>
 </head>
 <body>
 <h1>Heart Sound Monitor</h1>
-<p>Live S1/S2 Detection, Smoothed Waveform &amp; BPM</p>
+<p>Real-time S1/S2 detection • S1-to-S1 BPM • synchronized heartbeat visualization</p>
 <button id="connectBtn">Connect ESP32 (USB)</button>
-<div class="dashboard-container">
-<div class="stats-panel">
-<div class="stat-box"><div class="stat-value s1-s2-indicator" id="phaseDisplay">--</div><div class="stat-label">Current Sound</div></div>
-<div class="stat-box"><div class="stat-value" id="bpmDisplay">--</div><div class="stat-label">Estimated BPM</div></div>
+<div class="dashboard">
+<div class="stats">
+<div class="stat"><div class="value" id="phaseDisplay">--</div><div class="label">Current Sound</div></div>
+<div class="stat"><div class="value" id="bpmDisplay">--</div><div class="label">BPM</div></div>
 </div>
-<div class="visuals-panel">
-<div class="heart-container"><div class="heart" id="heartIcon"></div></div>
-<canvas id="waveform" width="650" height="240"></canvas>
+<div class="visuals">
+<div class="heartBox"><div class="heart" id="heartIcon"></div></div>
+<canvas id="waveform" width="720" height="250"></canvas>
 </div>
+<div class="legend">S1 = systolic / first sound &nbsp; • &nbsp; S2 = diastolic / second sound &nbsp; • &nbsp; BPM = 60000 ÷ S1-to-S1 interval (ms)</div>
 <div class="info" id="status">Waiting for ESP32...</div>
 </div>
 <script>
 const connectBtn=document.getElementById("connectBtn"),heartIcon=document.getElementById("heartIcon"),phaseDisplay=document.getElementById("phaseDisplay"),bpmDisplay=document.getElementById("bpmDisplay"),canvas=document.getElementById("waveform"),ctx=canvas.getContext("2d"),statusEl=document.getElementById("status");
-let audioCtx=null,nextAudioTime=0,port=null,dataQueue=[];
-const SAMPLE_RATE=4000,BLOCK_SIZE=128;
-const MIN_EVENT_GAP_MS=110,S1_S2_MIN_MS=100,S1_S2_MAX_MS=500,MIN_S1_INTERVAL_MS=350,MAX_S1_INTERVAL_MS=2000;
-let sampleClock=0,lastEventSample=-Infinity,lastS1Sample=-Infinity,previousS1IntervalMs=NaN,waitingForS2=false,bpmHistory=[];
-let envelope=0,noiseFloor=0.018,aboveCount=0,previousEnvelope=0;
-const DISPLAY_SAMPLES=700;
-canvas._wave=[];
-function clearCanvas(){ctx.fillStyle="#111116";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.strokeStyle="#444";ctx.beginPath();ctx.moveTo(0,canvas.height/2);ctx.lineTo(canvas.width,canvas.height/2);ctx.stroke()}clearCanvas();
+const SAMPLE_RATE=4000,BLOCK_SIZE=128,MIN_EVENT_GAP_SAMPLES=480,S1_S2_MIN=400,S1_S2_MAX=2000,MIN_S1_INTERVAL=1400,MAX_S1_INTERVAL=8000;
+let port=null,reader=null,audioCtx=null,nextAudioTime=0,dataQueue=[];
+let sampleClock=0,lastEvent=-Infinity,lastS1=-Infinity,lastS2=-Infinity,waitingForS2=false,lastValidInterval=NaN;
+let envelope=0,baseline=0.012,above=0,below=0,peak=0,peakStart=0;
+let history=[],wave=[];
+const REDUCED=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function clearCanvas(){ctx.fillStyle="#111116";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.strokeStyle="#3b3b46";ctx.beginPath();ctx.moveTo(0,canvas.height/2);ctx.lineTo(canvas.width,canvas.height/2);ctx.stroke()}clearCanvas();
 
 connectBtn.addEventListener("click",async()=>{
 try{
+if(!("serial" in navigator))throw new Error("Web Serial is not supported. Use Chrome or Edge.");
 port=await navigator.serial.requestPort();await port.open({baudRate:115200});
-connectBtn.textContent="Connected! Listening...";connectBtn.style.background="#4CAF50";
+connectBtn.textContent="Connected — Listening";connectBtn.disabled=true;
 audioCtx=new(window.AudioContext||window.webkitAudioContext)();await audioCtx.resume();
-statusEl.innerHTML='<span class="good">ESP32 connected — receiving 4000 Hz audio</span>';readSerialLoop();
-}catch(err){console.error(err);alert("Failed to connect. Make sure Arduino Serial Monitor is closed.");}
+statusEl.innerHTML='<span class="good">Connected. Receiving 4000 Hz audio.</span>';readSerial();
+}catch(e){console.error(e);alert(e.message||"Could not connect. Close Arduino Serial Monitor first.");}
 });
 
-async function readSerialLoop(){const reader=port.readable.getReader();try{while(true){const{value,done}=await reader.read();if(done)break;for(const byte of value)dataQueue.push(byte);processQueue()}}catch(error){console.error("Serial read error:",error);statusEl.textContent="Serial connection stopped."}finally{reader.releaseLock()}}
+async function readSerial(){
+reader=port.readable.getReader();
+try{while(true){const r=await reader.read();if(r.done)break;for(const b of r.value)dataQueue.push(b);processQueue()}}
+catch(e){console.error(e);statusEl.textContent="Serial connection stopped."}
+finally{reader.releaseLock()}
+}
 
 function processQueue(){
 while(dataQueue.length>=132){
 if(dataQueue[0]!==0xA5||dataQueue[1]!==0x5A||dataQueue[2]!==128){dataQueue.shift();continue}
-const payload=dataQueue.slice(3,131),receivedChecksum=dataQueue[131];let calculatedChecksum=0;
-for(const value of payload)calculatedChecksum=(calculatedChecksum+value)&255;
-if(calculatedChecksum===receivedChecksum){playAndVisualize(payload);dataQueue.splice(0,132)}else dataQueue.shift();
-}}
+const payload=dataQueue.slice(3,131),checksum=dataQueue[131];let sum=0;
+for(const b of payload)sum=(sum+b)&255;
+if(sum!==checksum){dataQueue.shift();continue}
+dataQueue.splice(0,132);handleBlock(payload);
+}
+}
 
-function playAndVisualize(payload){
+function handleBlock(payload){
+playAudio(payload);detectHeartSounds(payload);drawWave(payload);
+}
+
+function playAudio(payload){
 if(!audioCtx)return;
-const buffer=audioCtx.createBuffer(1,payload.length,SAMPLE_RATE),channelData=buffer.getChannelData(0);
-for(let i=0;i<payload.length;i++)channelData[i]=(payload[i]-128)/128;
+const buffer=audioCtx.createBuffer(1,BLOCK_SIZE,SAMPLE_RATE),data=buffer.getChannelData(0);
+for(let i=0;i<BLOCK_SIZE;i++)data[i]=(payload[i]-128)/128;
 const source=audioCtx.createBufferSource();source.buffer=buffer;source.connect(audioCtx.destination);
-if(nextAudioTime<audioCtx.currentTime)nextAudioTime=audioCtx.currentTime+.02;
-if(nextAudioTime>audioCtx.currentTime+.3)nextAudioTime=audioCtx.currentTime+.05;
+if(nextAudioTime<audioCtx.currentTime+.005)nextAudioTime=audioCtx.currentTime+.01;
+if(nextAudioTime>audioCtx.currentTime+.35)nextAudioTime=audioCtx.currentTime+.04;
 source.start(nextAudioTime);nextAudioTime+=buffer.duration;
-processHeartSound(payload);drawWaveform(payload);
 }
 
-function processHeartSound(payload){
+function detectHeartSounds(payload){
 for(let i=0;i<payload.length;i++){
-const x=(payload[i]-128)/128,rectified=Math.abs(x);
-envelope=.82*envelope+.18*rectified;
-if(envelope<noiseFloor*1.35)noiseFloor=.995*noiseFloor+.005*envelope;
-const adaptiveThreshold=Math.max(.055,noiseFloor*2.8);
-if(envelope>adaptiveThreshold)aboveCount++;else aboveCount=0;
-const sampleIndex=sampleClock++;
-const rising=aboveCount>=5&&previousEnvelope<=adaptiveThreshold;
-if(rising&&sampleIndex-lastEventSample>=MIN_EVENT_GAP_MS*SAMPLE_RATE/1000){lastEventSample=sampleIndex;registerSoundEvent(sampleIndex)}
-previousEnvelope=envelope;
-}}
+const raw=(payload[i]-128)/128;
+const a=Math.abs(raw);
+envelope=.88*envelope+.12*a;
+baseline=.998*baseline+.002*Math.min(envelope,.08);
+const threshold=Math.max(.035,baseline*3.2);
+if(envelope>threshold){above++;below=0;peak=Math.max(peak,envelope)}else{below++;above=0}
+const idx=sampleClock++;
+if(above===6)peakStart=idx;
+if(above>=6&&idx-lastEvent>=MIN_EVENT_GAP_SAMPLES){
+const localPeak=peak;
+if(localPeak>threshold*1.25){
+lastEvent=idx;registerSound(idx);
+}
+}
+if(below>=18)peak=0;
+}
+}
 
-function registerSoundEvent(sampleIndex){
+function registerSound(idx){
 if(!waitingForS2){
-waitingForS2=true;phaseDisplay.textContent="S1 (SYSTOLIC)";triggerAnimation("pulse-s1");updateBpmFromS1(sampleIndex);return;
+waitingForS2=true;lastS1=idx;phaseDisplay.textContent="S1";beatHeart("pulse-s1");
+return;
 }
-const gapMs=(sampleIndex-lastS1Sample)*1000/SAMPLE_RATE;
-if(gapMs>=S1_S2_MIN_MS&&gapMs<=S1_S2_MAX_MS){
-phaseDisplay.textContent="S2 (DIASTOLIC)";triggerAnimation("pulse-s2");waitingForS2=false;
-}else if(gapMs>S1_S2_MAX_MS){
-waitingForS2=true;phaseDisplay.textContent="S1 (SYSTOLIC)";triggerAnimation("pulse-s1");updateBpmFromS1(sampleIndex);
+const gap=idx-lastS1;
+if(gap>=S1_S2_MIN&&gap<=S1_S2_MAX){
+lastS2=idx;waitingForS2=false;phaseDisplay.textContent="S2";beatHeart("pulse-s2");
+return;
+}
+if(gap> S1_S2_MAX){
+waitingForS2=true;phaseDisplay.textContent="S1";beatHeart("pulse-s1");calculateBpm(idx);
 }
 }
 
-function updateBpmFromS1(sampleIndex){
-if(lastS1Sample!==-Infinity){
-const intervalMs=(sampleIndex-lastS1Sample)*1000/SAMPLE_RATE;
-if(intervalMs>=MIN_S1_INTERVAL_MS&&intervalMs<=MAX_S1_INTERVAL_MS){
-previousS1IntervalMs=intervalMs;
-const bpm=60000/intervalMs;
-if(bpm>=30&&bpm<=170){
-bpmHistory.push(bpm);if(bpmHistory.length>3)bpmHistory.shift();
-const sorted=[...bpmHistory].sort((a,b)=>a-b);
+function calculateBpm(newS1){
+if(lastS1===-Infinity){lastS1=newS1;return}
+const interval=newS1-lastS1;
+if(interval>=MIN_S1_INTERVAL&&interval<=MAX_S1_INTERVAL){
+const bpm=60000/(interval*1000/SAMPLE_RATE);
+if(bpm>=35&&bpm<=180){
+lastValidInterval=interval;
+history.push(bpm);if(history.length>3)history.shift();
+const sorted=history.slice().sort((a,b)=>a-b);
 bpmDisplay.textContent=Math.round(sorted[Math.floor(sorted.length/2)]);
-}}}
-lastS1Sample=sampleIndex;
+}
+}
+lastS1=newS1;
 }
 
-function triggerAnimation(animationClass){heartIcon.classList.remove("pulse-s1","pulse-s2");void heartIcon.offsetWidth;heartIcon.classList.add(animationClass)}
+function beatHeart(cls){
+if(REDUCED){heartIcon.style.transform="rotate(-45deg) scale(1.22)";setTimeout(()=>heartIcon.style.transform="rotate(-45deg) scale(1)",120);return}
+heartIcon.classList.remove("pulse-s1","pulse-s2");void heartIcon.offsetWidth;heartIcon.classList.add(cls);
+}
 
 setInterval(()=>{
-if(Number.isFinite(previousS1IntervalMs)){
-const bpm=60000/previousS1IntervalMs;
-if(bpm>=30&&bpm<=170)bpmDisplay.textContent=Math.round(bpm);
+if(Number.isFinite(lastValidInterval)){
+const bpm=60000/(lastValidInterval*1000/SAMPLE_RATE);
+if(bpm>=35&&bpm<=180)bpmDisplay.textContent=Math.round(bpm);
 }
 },1000);
 
-function drawWaveform(payload){
-const values=[];for(const value of payload)values.push((value-128)/128);
-const old=canvas._wave||[];for(const value of values)old.push(value);while(old.length>DISPLAY_SAMPLES)old.shift();canvas._wave=old;
+function drawWave(payload){
+for(const b of payload)wave.push((b-128)/128);
+while(wave.length>900)wave.shift();
 ctx.fillStyle="#111116";ctx.fillRect(0,0,canvas.width,canvas.height);
 ctx.strokeStyle="#333";ctx.beginPath();ctx.moveTo(0,canvas.height/2);ctx.lineTo(canvas.width,canvas.height/2);ctx.stroke();
 ctx.strokeStyle="#00ffcc";ctx.lineWidth=1.5;ctx.beginPath();
-for(let i=0;i<old.length;i++){const x=i*(canvas.width-1)/(DISPLAY_SAMPLES-1),y=canvas.height/2-old[i]*(canvas.height*.42);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)}
-ctx.stroke();
+for(let i=0;i<wave.length;i++){const x=i*(canvas.width-1)/(900-1),y=canvas.height/2-wave[i]*(canvas.height*.42);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)}ctx.stroke();
 }
 </script>
 </body>
