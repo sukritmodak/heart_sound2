@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 Heart Sound Monitor</title>
+    <style>
+        body {
+            background-color: #0d0d12;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 { margin-bottom: 5px; letter-spacing: 1px; }
+        p { color: #aaaaaa; margin-bottom: 25px; text-align: center; }
+
+        button {
+            background-color: #e91e63;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: 0.3s;
+            box-shadow: 0 4px 15px rgba(233, 30, 99, 0.4);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        button:hover { background-color: #d81557; transform: translateY(-2px); }
+
+        .dashboard-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 30px;
+            width: 100%;
+            max-width: 800px;
+            margin-top: 20px;
+        }
+
+        /* Stats Panel */
+        .stats-panel {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            background: #1a1a24;
+            padding: 20px 40px;
+            border-radius: 12px;
+            border: 1px solid #333;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.5);
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .stat-box {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 36px;
+            font-weight: bold;
+            color: #00ffcc;
+            text-shadow: 0 0 10px rgba(0, 255, 204, 0.4);
+            font-family: monospace;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-top: 5px;
+        }
+
+        .s1-s2-indicator {
+            color: #e91e63;
+            text-shadow: 0 0 10px rgba(233, 30, 99, 0.5);
+        }
+
+        /* Heart & Waveform Container */
+        .visuals-panel {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 50px;
+            width: 100%;
+        }
+
+        /* Heart Animation CSS */
+        .heart-container {
+            width: 150px;
+            height: 150px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .heart {
+            background-color: #e91e63;
+            width: 50px;
+            height: 50px;
+            position: relative;
+            transform: rotate(-45deg) scale(1);
+            box-shadow: 0 0 20px rgba(233, 30, 99, 0.4);
+        }
+
+        .heart::before, .heart::after {
+            content: "";
+            background-color: inherit;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            position: absolute;
+        }
+        .heart::before { top: -25px; left: 0; }
+        .heart::after { top: 0; left: 25px; }
+
+        /* S1 Animation (LUB - Medium pulse) */
+        @keyframes beatS1 {
+            0% { transform: rotate(-45deg) scale(1); box-shadow: 0 0 20px rgba(233, 30, 99, 0.4); }
+            30% { transform: rotate(-45deg) scale(1.25); box-shadow: 0 0 40px rgba(233, 30, 99, 0.8); }
+            100% { transform: rotate(-45deg) scale(1); box-shadow: 0 0 20px rgba(233, 30, 99, 0.4); }
+        }
+
+        /* S2 Animation (DUB - Larger, sharper pulse) */
+        @keyframes beatS2 {
+            0% { transform: rotate(-45deg) scale(1); box-shadow: 0 0 20px rgba(233, 30, 99, 0.4); }
+            20% { transform: rotate(-45deg) scale(1.4); box-shadow: 0 0 60px rgba(255, 64, 129, 1); background-color: #ff4081; }
+            100% { transform: rotate(-45deg) scale(1); box-shadow: 0 0 20px rgba(233, 30, 99, 0.4); background-color: #e91e63; }
+        }
+
+        .pulse-s1 { animation: beatS1 0.2s ease-out; }
+        .pulse-s2 { animation: beatS2 0.25s ease-out; }
+
+        /* Oscilloscope Waveform Canvas */
+        canvas {
+            background-color: #111116;
+            border: 2px solid #2a2a35;
+            border-radius: 8px;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8), 0 4px 15px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Heart Sound Monitor</h1>
+    <p>Live S1/S2 Detection & Audio Visualizer.</p>
+
+    <button id="connectBtn">Connect ESP32 (USB)</button>
+
+    <div class="dashboard-container">
+        
+        <!-- Live BPM & Beat Stats -->
+        <div class="stats-panel">
+            <div class="stat-box">
+                <div class="stat-value s1-s2-indicator" id="phaseDisplay">--</div>
+                <div class="stat-label">Current Sound</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="bpmDisplay">--</div>
+                <div class="stat-label">Estimated BPM</div>
+            </div>
+        </div>
+
+        <div class="visuals-panel">
+            <!-- Visual Heart -->
+            <div class="heart-container">
+                <div class="heart" id="heartIcon"></div>
+            </div>
+            
+            <!-- Sound Waveform -->
+            <canvas id="waveform" width="500" height="200"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const connectBtn = document.getElementById('connectBtn');
+        const heartIcon = document.getElementById('heartIcon');
+        const phaseDisplay = document.getElementById('phaseDisplay');
+        const bpmDisplay = document.getElementById('bpmDisplay');
+        const canvas = document.getElementById('waveform');
+        const ctx = canvas.getContext('2d');
+
+        // Audio & Serial Variables
+        let audioCtx;
+        let nextAudioTime = 0;
+        let port;
+        let dataQueue = [];
+
+        // Detection Settings
+        const AMPLITUDE_THRESHOLD = 0.15; // Minimum volume to register a beat
+        let lastBeatTime = 0;
+        let s1Time = 0;
+        let lastValidS1Time = 0;
+        let waitingForS2 = false;
+        let bpmHistory = [];
+
+        // Draw initial flatline
+        ctx.fillStyle = "#111116";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.strokeStyle = "#00ffcc";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, canvas.height / 2);
+        ctx.lineTo(canvas.width, canvas.height / 2);
+        ctx.stroke();
+
+        connectBtn.addEventListener('click', async () => {
+            try {
+                port = await navigator.serial.requestPort();
+                await port.open({ baudRate: 115200 });
+
+                connectBtn.innerText = "Connected! Listening...";
+                connectBtn.style.backgroundColor = "#4CAF50";
+
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                readSerialLoop();
+            } catch (err) {
+                console.error('Connection error:', err);
+                alert("Failed to connect. Make sure Arduino Serial Monitor is closed.");
+            }
+        });
+
+        async function readSerialLoop() {
+            const reader = port.readable.getReader();
+            try {
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    for (let i = 0; i < value.length; i++) {
+                        dataQueue.push(value[i]);
+                    }
+                    processQueue();
+                }
+            } catch (error) {
+                console.error("Serial read error:", error);
+            } finally {
+                reader.releaseLock();
+            }
+        }
+
+        function processQueue() {
+            while (dataQueue.length >= 132) {
+                if (dataQueue[0] === 0xA5 && dataQueue[1] === 0x5A && dataQueue[2] === 128) {
+                    let payload = dataQueue.slice(3, 131);
+                    let receivedChecksum = dataQueue[131];
+                    
+                    let calculatedSum = 0;
+                    for (let i = 0; i < 128; i++) {
+                        calculatedSum = (calculatedSum + payload[i]) & 0xFF; 
+                    }
+
+                    if (calculatedSum === receivedChecksum) {
+                        playAndVisualize(payload);
+                        dataQueue.splice(0, 132);
+                    } else {
+                        dataQueue.shift();
+                    }
+                } else {
+                    dataQueue.shift();
+                }
+            }
+        }
+
+        function playAndVisualize(payload) {
+            if (!audioCtx) return;
+
+            const buffer = audioCtx.createBuffer(1, payload.length, 4000);
+            const channelData = buffer.getChannelData(0);
+            let maxAmplitude = 0;
+
+            for (let i = 0; i < payload.length; i++) {
+                let floatSample = (payload[i] - 128) / 128.0;
+                channelData[i] = floatSample;
+                if (Math.abs(floatSample) > maxAmplitude) {
+                    maxAmplitude = Math.abs(floatSample);
+                }
+            }
+
+            const source = audioCtx.createBufferSource();
+            source.buffer = buffer;
+            source.connect(audioCtx.destination);
+            
+            if (nextAudioTime < audioCtx.currentTime) {
+                nextAudioTime = audioCtx.currentTime + 0.02; 
+            } else if (nextAudioTime > audioCtx.currentTime + 0.3) {
+                nextAudioTime = audioCtx.currentTime + 0.05; 
+            }
+
+            source.start(nextAudioTime);
+            nextAudioTime += buffer.duration;
+
+            drawWaveform(payload);
+            
+            // Run the algorithm to detect S1/S2 and update the UI
+            analyzeBeat(maxAmplitude);
+        }
+
+        function analyzeBeat(amplitude) {
+            let now = Date.now();
+            
+            // Clear label if too much time has passed without a sound
+            if (now - lastBeatTime > 1500) {
+                phaseDisplay.innerText = "--";
+            }
+
+            if (amplitude > AMPLITUDE_THRESHOLD) {
+                // MIN_SOUND_GAP (150ms) to avoid double-triggering on the same sound
+                if (now - lastBeatTime > 150) { 
+                    
+                    if (!waitingForS2) {
+                        // S1 Detected
+                        s1Time = now;
+                        waitingForS2 = true;
+                        
+                        phaseDisplay.innerText = "S1 (LUB)";
+                        triggerAnimation('pulse-s1');
+
+                        // Calculate BPM based on R-R interval (S1 to S1 time)
+                        if (lastValidS1Time > 0) {
+                            let cycleMs = now - lastValidS1Time;
+                            if (cycleMs > 300 && cycleMs < 2000) { // Valid bounds (30 - 200 BPM)
+                                let instantaneousBpm = 60000 / cycleMs;
+                                
+                                // Rolling average for smooth BPM display
+                                bpmHistory.push(instantaneousBpm);
+                                if (bpmHistory.length > 4) bpmHistory.shift();
+                                
+                                let avgBpm = bpmHistory.reduce((a, b) => a + b, 0) / bpmHistory.length;
+                                bpmDisplay.innerText = Math.round(avgBpm);
+                            }
+                        }
+                        lastValidS1Time = now;
+
+                    } else {
+                        // Checking for S2
+                        let gap = now - s1Time;
+                        // S1_S2 GAP Check (100ms - 500ms)
+                        if (gap >= 100 && gap <= 500) {
+                            phaseDisplay.innerText = "S2 (DUB)";
+                            triggerAnimation('pulse-s2');
+                            waitingForS2 = false;
+                        } else {
+                            // Gap is invalid (too long), treat this sound as a new S1
+                            s1Time = now;
+                            waitingForS2 = true;
+                            phaseDisplay.innerText = "S1 (LUB)";
+                            triggerAnimation('pulse-s1');
+                            lastValidS1Time = now;
+                        }
+                    }
+                    lastBeatTime = now;
+                }
+            }
+        }
+
+        function triggerAnimation(animationClass) {
+            // Remove classes and trigger reflow to allow animation to replay instantly
+            heartIcon.classList.remove('pulse-s1', 'pulse-s2');
+            void heartIcon.offsetWidth; 
+            heartIcon.classList.add(animationClass);
+        }
+
+        function drawWaveform(payload) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.beginPath();
+            
+            let sliceWidth = canvas.width / payload.length;
+            let x = 0;
+
+            for(let i = 0; i < payload.length; i++) {
+                let v = payload[i] / 255.0; 
+                let y = (1 - v) * canvas.height;
+
+                if(i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+                x += sliceWidth;
+            }
+            ctx.stroke();
+        }
+    </script>
+</body>
+</html>
