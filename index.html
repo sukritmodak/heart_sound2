@@ -160,7 +160,6 @@ previousEnvelope=envelope;
 function registerSoundEvent(sampleIndex,ms){
 if(!waitingForS2){
 waitingForS2=true;
-lastS1Sample=sampleIndex;
 phaseDisplay.textContent='S1 (LUB)';
 triggerAnimation('pulse-s1');
 updateBpmFromS1(sampleIndex);
@@ -183,7 +182,7 @@ updateBpmFromS1(sampleIndex);
 }
 
 function updateBpmFromS1(sampleIndex){
-if(lastS1Sample===-Infinity)return;
+if(lastS1Sample!==-Infinity){
 const intervalMs=(sampleIndex-lastS1Sample)*1000/SAMPLE_RATE;
 if(intervalMs>=MIN_S1_INTERVAL_MS&&intervalMs<=MAX_S1_INTERVAL_MS){
 const bpm=60000/intervalMs;
@@ -193,6 +192,7 @@ if(bpmHistory.length>5)bpmHistory.shift();
 const sorted=[...bpmHistory].sort((a,b)=>a-b);
 const median=sorted[Math.floor(sorted.length/2)];
 bpmDisplay.textContent=Math.round(median);
+}
 }
 }
 lastS1Sample=sampleIndex;
