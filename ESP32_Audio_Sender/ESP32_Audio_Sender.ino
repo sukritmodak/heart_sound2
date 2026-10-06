@@ -61,7 +61,7 @@ void setup() {
   BT("================================");
   BT("Bluetooth connected");
   BT("S1 + S2 = ONE HEARTBEAT");
-  BT("BPM calculated every 5 seconds");
+  BT("Web BPM: S1-to-S1 timing, updated every second");
   BT("Audio sample rate = 4000 Hz");
   BT("Audio block = 128 samples");
   BT("================================");
